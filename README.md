@@ -128,7 +128,8 @@ MINIO_BUCKET_NAME=data
 
     本專案使用 PostGIS 擴充套件。為了防止 `alembic revision --autogenerate` 誤刪 PostGIS 的系統表格，我們在 `env.py` 中加入了過濾機制。
 
-    `env.py` 設定
+  - `env.py` 設定
+
     使用 include_object 函數忽略以下表格：
 
     ``` python
@@ -142,4 +143,12 @@ MINIO_BUCKET_NAME=data
     'featnames', 'loader_', 'pagc_', 'place', 'secondary_', 'state', 
     'street_', 'tabblock', 'tract', 'zcta5', 'zip_lookup', 'geocode_settings'
     }
+    ```
+  
+  - `script.py.mako` 設定
+
+    要使得`alembic`寫遷移腳本的時候加入`geoalchemy2`讓postgis可以正常使用, 在檔案中加入
+
+    ``` python
+    import geoalchemy2  
     ```
