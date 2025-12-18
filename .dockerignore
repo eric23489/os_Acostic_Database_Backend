@@ -1,0 +1,11 @@
+# .dockerignore
+
+# 忽略 Git 相關檔案
+.git/
+.gitignore
+
+# 忽略 Python 快取和虛擬環境
+__pycache__/
+*.pyc
+venv/
+.env
