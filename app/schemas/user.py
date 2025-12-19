@@ -1,18 +1,35 @@
-from pydantic import BaseModel
+from typing import Optional
+from datetime import datetime
+from pydantic import BaseModel, EmailStr
+from app.enums.enums import UserRole
 
 
 class UserBase(BaseModel):
-    username: str
-    email: str
+    email: EmailStr
+    full_name: Optional[str] = None
+    role: Optional[str] = UserRole.USER.value
+    is_active: Optional[bool] = True
+    is_verified: Optional[bool] = False
 
 
 class UserCreate(UserBase):
-    pass
+    password_hash: str
+
+
+class UserUpdate(BaseModel):
+    email: Optional[EmailStr] = None
+    full_name: Optional[str] = None
+    role: Optional[str] = None
+    is_active: Optional[bool] = None
+    is_verified: Optional[bool] = None
+    password: Optional[str] = None
 
 
 class UserResponse(UserBase):
     id: int
-    role: str
+    last_login_at: Optional[datetime] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
     class Config:
-        from_attributes = True  # 允許從 ORM 物件讀取資料
+        from_attributes = True
