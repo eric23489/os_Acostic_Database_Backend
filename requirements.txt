@@ -9,3 +9,4 @@ geoalchemy2
 bcrypt
 python-jose[cryptography]
 python-multipart
+pytest
