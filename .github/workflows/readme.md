@@ -1,4 +1,4 @@
-# OS_Acostic_Database_Backend CI 說明
+# OS_Acoustic_Database_Backend CI 說明
 
 ## 專案簡介 (Introduction)
 
