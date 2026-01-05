@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [ eric23489/feature/auth-token-flows ]
+  pull_request:
+    branches: [ eric23489/feature/auth-token-flows ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Write .env
+        run: |
+          cat > .env <<'EOF'
+          POSTGRES_USER=${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_DB=${{ secrets.POSTGRES_DB }}
+          POSTGRES_IP_ADDRESS=${{ vars.POSTGRES_IP_ADDRESS }}
+          POSTGRES_PORT=${{ vars.POSTGRES_PORT }}
+          POSTGRES_PORT_OUT=${{ vars.POSTGRES_PORT_OUT }}
+          APP_PORT=${{ vars.APP_PORT }}
+          APP_PORT_OUT=${{ vars.APP_PORT_OUT }}
+          MINIO_IP_ADDRESS=${{ vars.MINIO_IP_ADDRESS }}
+          MINIO_PORT=${{ vars.MINIO_PORT }}
+          AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          MINIO_BUCKET_NAME=${{ vars.MINIO_BUCKET_NAME }}
+          SECRET_KEY=${{ secrets.SECRET_KEY }}
+          ALGORITHM=${{ vars.ALGORITHM }}
+          ACCESS_TOKEN_EXPIRE_MINUTES=${{ vars.ACCESS_TOKEN_EXPIRE_MINUTES }}
+          EOF
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install deps
+        run: pip install -r requirements.txt
+
+      - name: Run tests
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: pytest
