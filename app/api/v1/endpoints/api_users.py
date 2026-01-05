@@ -24,7 +24,7 @@ def login(
     user = UserService(db).authenticate_user(form_data.username, form_data.password)
     if not user:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
+            status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
         )
     token = create_access_token({"sub": user.email})
