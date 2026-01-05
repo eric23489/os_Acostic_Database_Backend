@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ eric23489/feature/auth-token-flows ]
+    branches: [ eric23489/feature/auth-token-flows, main ]
   pull_request:
-    branches: [ eric23489/feature/auth-token-flows ]
+    branches: [ eric23489/feature/auth-token-flows, main ]
 
 jobs:
   build:
