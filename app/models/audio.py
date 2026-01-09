@@ -23,11 +23,13 @@ class AudioInfo(Base):
     file_format = Column(String(10), default="wav")
     file_size = Column(BigInteger)
     checksum = Column(String(64))
+
     record_time = Column(DateTime(timezone=True), index=True)
     record_duration = Column(Float)
     fs = Column(Integer)
     recorder_channel = Column(Integer, default=0)
     audio_channels = Column(Integer, default=1)
+
     target = Column(String(100))
     target_type = Column(Integer)
     meta_json = Column(JSON)

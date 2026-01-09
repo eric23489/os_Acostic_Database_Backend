@@ -8,14 +8,14 @@ from app.enums.enums import RecorderStatus
 class RecorderInfo(Base):
     __tablename__ = "recorder_info"
     id = Column(Integer, primary_key=True)
-    brand = Column(String(50), nullable=False)
-    model = Column(String(50), nullable=False)
-    sn = Column(String(50), nullable=False, unique=True)
+    brand = Column(String(100), nullable=False)
+    model = Column(String(100), nullable=False)
+    sn = Column(String(100), nullable=False, unique=True)
     sensitivity = Column(Float, nullable=False)
     high_gain = Column(Float)
     low_gain = Column(Float)
 
-    status = Column(String(50), default=RecorderStatus.IN_SERVICE.value)
+    status = Column(String(100), default=RecorderStatus.IN_SERVICE.value)
     owner = Column(String(100), default="Ocean Sound")
     recorder_channels = Column(Integer, default=1)
     description = Column(String)

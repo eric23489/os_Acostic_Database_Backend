@@ -29,8 +29,8 @@ class CetaceanInfo(Base):
     cetacean_call_type = Column(
         SmallInteger, index=True, default=CetaceanCallType.UNKNOWN.value
     )
-    detection_method = Column(String(50), default=DetectionMethod.MANUAL.value)
-    model_name = Column(String(50))
+    detection_method = Column(String(100), default=DetectionMethod.MANUAL.value)
+    model_name = Column(String(100))
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(

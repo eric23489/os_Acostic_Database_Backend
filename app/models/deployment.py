@@ -53,6 +53,7 @@ class DeploymentInfo(Base):
     end_time = Column(DateTime(timezone=True))
     deploy_time = Column(DateTime(timezone=True))
     return_time = Column(DateTime(timezone=True))
+    phase = Column(Integer)
 
     # GIS Generated Columns
     gps_lat_exe = Column(Float)
@@ -68,7 +69,7 @@ class DeploymentInfo(Base):
     fs = Column(Integer)
     sensitivity = Column(Float)
     gain = Column(Float)
-    status = Column(String(50), default="un-deployed")
+    status = Column(String(100), default="un-deployed")
     description = Column(String)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -78,4 +79,5 @@ class DeploymentInfo(Base):
 
     __table_args__ = (
         UniqueConstraint("point_id", "start_time", name="uix_point_start_time"),
+        UniqueConstraint("point_id", "phase", name="uix_point_phase"),
     )

@@ -21,7 +21,7 @@ class ProjectInfo(Base):
     owner = Column(String(100))
     contractor = Column(String(100))
     contact_name = Column(String(100))
-    contact_phone = Column(String(50))
+    contact_phone = Column(String(100))
     description = Column(String)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(
