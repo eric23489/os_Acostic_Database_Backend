@@ -18,7 +18,7 @@ jobs:
           cat > .env <<'EOF'
           POSTGRES_USER=${{ secrets.DB_USER }}
           POSTGRES_PASSWORD=${{ secrets.DB_PASSWORD }}
-          POSTGRES_DB=${{ secrets.DB_NAME }}
+          POSTGRES_DB=${{ secrets.POSTGRES_DB }}
           POSTGRES_IP_ADDRESS=db
           POSTGRES_PORT=5431
           POSTGRES_PORT_OUT=5431
