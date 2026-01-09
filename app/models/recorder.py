@@ -1,6 +1,4 @@
-from sqlalchemy import (
-    Column, Integer, String, Float, DateTime, UniqueConstraint
-)
+from sqlalchemy import Column, Integer, String, Float, DateTime, UniqueConstraint
 from sqlalchemy.sql import func
 
 from app.db.base import Base
@@ -13,15 +11,19 @@ class RecorderInfo(Base):
     brand = Column(String(50), nullable=False)
     model = Column(String(50), nullable=False)
     sn = Column(String(50), nullable=False, unique=True)
-    sensitivity = Column(Float)
+    sensitivity = Column(Float, nullable=False)
     high_gain = Column(Float)
     low_gain = Column(Float)
+
     status = Column(String(50), default=RecorderStatus.IN_SERVICE.value)
     owner = Column(String(100), default="Ocean Sound")
     recorder_channels = Column(Integer, default=1)
+    description = Column(String)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-    
+    updated_at = Column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
     __table_args__ = (
-        UniqueConstraint('brand', 'model', 'sn', name='uix_recorder_brand_model_sn'),
+        UniqueConstraint("brand", "model", "sn", name="uix_recorder_brand_model_sn"),
     )
