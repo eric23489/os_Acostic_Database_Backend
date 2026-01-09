@@ -6,3 +6,7 @@ psycopg2-binary
 pydantic
 pydantic-settings
 geoalchemy2
+bcrypt
+python-jose[cryptography]
+python-multipart
+pytest

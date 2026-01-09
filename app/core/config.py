@@ -25,6 +25,11 @@ class Settings(BaseSettings):
     # App settings
     app_port: int = 8000
 
+    # Auth settings
+    secret_key: str
+    algorithm: str = "HS256"
+    access_token_expire_minutes: int = 30
+
     # MinIO / AWS settings
     minio_ip_address: str | None = None
     minio_port: int = 9000
