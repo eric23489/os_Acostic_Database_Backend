@@ -13,7 +13,7 @@ class UserBase(BaseModel):
 
 
 class UserCreate(UserBase):
-    password_hash: str
+    password: str  # Plain text password for creation
 
 
 class UserUpdate(BaseModel):
@@ -33,3 +33,13 @@ class UserResponse(UserBase):
 
     class Config:
         from_attributes = True
+
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+
+# 預留給 JWT token payload 使用
+class TokenData(BaseModel):
+    sub: Optional[str] = None  # subject, e.g., email
