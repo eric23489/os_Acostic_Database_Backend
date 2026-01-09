@@ -21,7 +21,9 @@ def create_user(user: UserCreate, db: Session = Depends(get_db)):
 def login(
     form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)
 ):
-    user = UserService(db).authenticate_user(form_data.username, form_data.password)
+    # OAuth2PasswordRequestForm uses the 'username' field to carry the user's email
+    email = form_data.username
+    user = UserService(db).authenticate_user(email, form_data.password)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
