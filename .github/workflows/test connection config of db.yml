@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ eric23489/feature/auth-token-flows, main ]
+    branches: [ main, eric23489/auth-token-flows ]
   pull_request:
-    branches: [ eric23489/feature/auth-token-flows, main ]
+    branches: [ main ]
 
 jobs:
   build:
@@ -16,14 +16,19 @@ jobs:
       - name: Write .env
         run: |
           cat > .env <<'EOF'
-          POSTGRES_USER=${{ secrets.DB_USER }}
-          POSTGRES_PASSWORD=${{ secrets.DB_PASSWORD }}
+          POSTGRES_USER=${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
           POSTGRES_DB=${{ secrets.POSTGRES_DB }}
-          POSTGRES_IP_ADDRESS=db
+          POSTGRES_IP_ADDRESS=localhost
           POSTGRES_PORT=5431
           POSTGRES_PORT_OUT=5431
           APP_PORT=80
           APP_PORT_OUT=8000
+          MINIO_IP_ADDRESS=localhost
+          MINIO_PORT=9000
+          AWS_ACCESS_KEY_ID=minioadmin
+          AWS_SECRET_ACCESS_KEY=minioadmin
+          MINIO_BUCKET_NAME=data
           SECRET_KEY=${{ secrets.SECRET_KEY }}
           ALGORITHM=HS256
           ACCESS_TOKEN_EXPIRE_MINUTES=30

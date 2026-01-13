@@ -31,4 +31,8 @@ def get_current_user(
     user = db.query(UserInfo).filter(UserInfo.email == email).first()
     if not user:
         raise credentials_error
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Inactive user"
+        )
     return user

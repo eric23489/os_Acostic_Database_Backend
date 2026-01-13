@@ -11,7 +11,8 @@ def test_get_database_url(monkeypatch):
 
     cfg = Settings()
 
+    # Use str() to ensure compatibility if get_database_url returns a Pydantic DSN object
     assert (
-        cfg.get_database_url()
+        str(cfg.get_database_url())
         == "postgresql://tester:secret@db-host:15432/sample_db"
     )

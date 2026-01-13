@@ -3,6 +3,7 @@ from datetime import datetime
 from pydantic import BaseModel
 from app.enums.enums import RecorderStatus
 
+
 class RecorderBase(BaseModel):
     brand: str
     model: str
@@ -13,9 +14,12 @@ class RecorderBase(BaseModel):
     status: Optional[str] = RecorderStatus.IN_SERVICE.value
     owner: Optional[str] = "Ocean Sound"
     recorder_channels: Optional[int] = 1
+    description: Optional[str] = None
+
 
 class RecorderCreate(RecorderBase):
     pass
+
 
 class RecorderUpdate(BaseModel):
     brand: Optional[str] = None
@@ -27,6 +31,8 @@ class RecorderUpdate(BaseModel):
     status: Optional[str] = None
     owner: Optional[str] = None
     recorder_channels: Optional[int] = None
+    description: Optional[str] = None
+
 
 class RecorderResponse(RecorderBase):
     id: int
