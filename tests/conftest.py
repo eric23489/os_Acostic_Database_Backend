@@ -20,6 +20,7 @@ def mock_current_user():
     user.id = 1
     user.email = "admin@example.com"
     user.role = UserRole.ADMIN.value
+    user.full_name = "Admin User"
     user.is_active = True
     return user
 

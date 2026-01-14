@@ -1,5 +1,6 @@
 from unittest.mock import patch
 from app.schemas.point import PointResponse
+from app.core.config import settings
 
 
 def test_get_points(client):
@@ -7,7 +8,7 @@ def test_get_points(client):
         mock_service = MockService.return_value
         mock_service.get_points.return_value = []
 
-        response = client.get("/points/?project_id=1")
+        response = client.get(f"{settings.api_prefix}/points/?project_id=1")
         assert response.status_code == 200
         assert response.json() == []
 
@@ -19,7 +20,7 @@ def test_get_point(client):
             id=1, project_id=1, name="Point A"
         )
 
-        response = client.get("/points/1")
+        response = client.get(f"{settings.api_prefix}/points/1")
         assert response.status_code == 200
         assert response.json()["name"] == "Point A"
 
@@ -32,7 +33,7 @@ def test_create_point(client):
         )
 
         response = client.post(
-            "/points/",
+            f"{settings.api_prefix}/points/",
             json={
                 "project_id": 1,
                 "name": "New Point",
@@ -51,6 +52,8 @@ def test_update_point(client):
             id=1, project_id=1, name="Updated Point"
         )
 
-        response = client.put("/points/1", json={"name": "Updated Point"})
+        response = client.put(
+            f"{settings.api_prefix}/points/1", json={"name": "Updated Point"}
+        )
         assert response.status_code == 200
         assert response.json()["name"] == "Updated Point"

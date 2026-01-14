@@ -3,6 +3,7 @@ from app.schemas.user import UserResponse, Token
 from app.enums.enums import UserRole
 from app.core.auth import get_current_user
 from app.main import app
+from app.core.config import settings
 
 
 def test_create_user(client):
@@ -17,7 +18,7 @@ def test_create_user(client):
         )
 
         response = client.post(
-            "/users/",
+            f"{settings.api_prefix}/users/",
             json={
                 "email": "test@example.com",
                 "password": "password",
@@ -36,7 +37,7 @@ def test_login(client):
         mock_service.authenticate_user.return_value = mock_user
 
         response = client.post(
-            "/users/login",
+            f"{settings.api_prefix}/users/login",
             data={"username": "test@example.com", "password": "password"},
         )
         assert response.status_code == 200
@@ -44,7 +45,7 @@ def test_login(client):
 
 
 def test_read_users_me(client, mock_current_user):
-    response = client.get("/users/me")
+    response = client.get(f"{settings.api_prefix}/users/me")
     assert response.status_code == 200
     assert response.json()["email"] == mock_current_user.email
 
@@ -54,7 +55,7 @@ def test_read_users_admin(client):
         mock_service = MockService.return_value
         mock_service.get_users.return_value = []
 
-        response = client.get("/users/")
+        response = client.get(f"{settings.api_prefix}/users/")
         assert response.status_code == 200
         assert response.json() == []
 
@@ -65,7 +66,7 @@ def test_read_users_forbidden(client):
     non_admin.role = UserRole.USER.value
     app.dependency_overrides[get_current_user] = lambda: non_admin
 
-    response = client.get("/users/")
+    response = client.get(f"{settings.api_prefix}/users/")
     assert response.status_code == 403
 
 
@@ -80,6 +81,8 @@ def test_update_user_me(client):
             is_active=True,
         )
 
-        response = client.put("/users/me", json={"full_name": "Updated Name"})
+        response = client.put(
+            f"{settings.api_prefix}/users/me", json={"full_name": "Updated Name"}
+        )
         assert response.status_code == 200
         assert response.json()["full_name"] == "Updated Name"

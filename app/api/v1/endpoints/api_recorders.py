@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_user
 from app.db.session import get_db
-from app.schemas.recorder import RecorderCreate, RecorderResponse
+from app.schemas.recorder import RecorderCreate, RecorderResponse, RecorderUpdate
 from app.services.recorder_service import RecorderService
 
 router = APIRouter(prefix="/recorders", tags=["recorders"])
@@ -42,7 +42,7 @@ def create_recorder(
 @router.put("/{recorder_id}", response_model=RecorderResponse)
 def update_recorder(
     recorder_id: int,
-    recorder: RecorderCreate,
+    recorder: RecorderUpdate,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):

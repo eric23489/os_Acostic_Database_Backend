@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import exists
 
 from app.models.recorder import RecorderInfo
-from app.schemas.recorder import RecorderCreate, RecorderBase
+from app.schemas.recorder import RecorderCreate, RecorderUpdate
 
 
 class RecorderService:
@@ -60,31 +60,30 @@ class RecorderService:
         return db_recorder
 
     def update_recorder(
-        self, recorder_id: int, recorder: RecorderCreate
+        self, recorder_id: int, recorder_in: RecorderUpdate
     ) -> RecorderInfo:
         db_recorder = self.get_recorder(recorder_id)
 
+        update_data = recorder_in.model_dump(exclude_unset=True)
+
+        # Check if unique constraint fields are being updated
+        new_brand = update_data.get("brand", db_recorder.brand)
+        new_model = update_data.get("model", db_recorder.model)
+        new_sn = update_data.get("sn", db_recorder.sn)
+
         if (
-            db_recorder.brand != recorder.brand
-            or db_recorder.model != recorder.model
-            or db_recorder.sn != recorder.sn
+            new_brand != db_recorder.brand
+            or new_model != db_recorder.model
+            or new_sn != db_recorder.sn
         ):
-            if self.check_recorder_exists(recorder.brand, recorder.model, recorder.sn):
+            if self.check_recorder_exists(new_brand, new_model, new_sn):
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Recorder with brand '{recorder.brand}', model '{recorder.model}', and SN '{recorder.sn}' already exists.",
+                    detail=f"Recorder with brand '{new_brand}', model '{new_model}', and SN '{new_sn}' already exists.",
                 )
 
-        db_recorder.brand = recorder.brand
-        db_recorder.model = recorder.model
-        db_recorder.sn = recorder.sn
-        db_recorder.sensitivity = recorder.sensitivity
-        db_recorder.high_gain = recorder.high_gain
-        db_recorder.low_gain = recorder.low_gain
-        db_recorder.status = recorder.status
-        db_recorder.owner = recorder.owner
-        db_recorder.recorder_channels = recorder.recorder_channels
-        db_recorder.description = recorder.description
+        for field, value in update_data.items():
+            setattr(db_recorder, field, value)
 
         self.db.commit()
         self.db.refresh(db_recorder)

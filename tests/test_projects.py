@@ -1,5 +1,6 @@
 from unittest.mock import patch
 from app.schemas.project import ProjectResponse
+from app.core.config import settings
 
 
 def test_get_projects(client):
@@ -9,7 +10,7 @@ def test_get_projects(client):
             ProjectResponse(id=1, name="Project A", area="Area A")
         ]
 
-        response = client.get("/projects/")
+        response = client.get(f"{settings.api_prefix}/projects/")
         assert response.status_code == 200
         assert len(response.json()) == 1
         assert response.json()[0]["name"] == "Project A"
@@ -22,7 +23,7 @@ def test_get_project(client):
             id=1, name="Project A", area="Area A"
         )
 
-        response = client.get("/projects/1")
+        response = client.get(f"{settings.api_prefix}/projects/1")
         assert response.status_code == 200
         assert response.json()["id"] == 1
 
@@ -35,7 +36,8 @@ def test_create_project(client):
         )
 
         response = client.post(
-            "/projects/", json={"name": "New Project", "area": "New Area"}
+            f"{settings.api_prefix}/projects/",
+            json={"name": "New Project", "area": "New Area"},
         )
         assert response.status_code == 200
         assert response.json()["name"] == "New Project"
@@ -48,6 +50,8 @@ def test_update_project(client):
             id=1, name="Updated Project", area="Area A"
         )
 
-        response = client.put("/projects/1", json={"name": "Updated Project"})
+        response = client.put(
+            f"{settings.api_prefix}/projects/1", json={"name": "Updated Project"}
+        )
         assert response.status_code == 200
         assert response.json()["name"] == "Updated Project"

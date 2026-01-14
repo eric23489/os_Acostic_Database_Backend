@@ -1,6 +1,6 @@
 from typing import Optional
 from datetime import datetime
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from app.enums.enums import RecorderStatus
 
 
@@ -8,7 +8,7 @@ class RecorderBase(BaseModel):
     brand: str
     model: str
     sn: str
-    sensitivity: Optional[float] = None
+    sensitivity: float
     high_gain: Optional[float] = None
     low_gain: Optional[float] = None
     status: Optional[str] = RecorderStatus.IN_SERVICE.value
@@ -39,5 +39,4 @@ class RecorderResponse(RecorderBase):
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

@@ -1,5 +1,6 @@
 from unittest.mock import patch
 from app.schemas.deployment import DeploymentResponse
+from app.core.config import settings
 
 
 def test_get_deployments(client):
@@ -7,7 +8,7 @@ def test_get_deployments(client):
         mock_service = MockService.return_value
         mock_service.get_deployments.return_value = []
 
-        response = client.get("/deployments/?point_id=1")
+        response = client.get(f"{settings.api_prefix}/deployments/?point_id=1")
         assert response.status_code == 200
         assert response.json() == []
 
@@ -19,7 +20,7 @@ def test_get_deployment(client):
             id=1, point_id=1, recorder_id=1, phase=1
         )
 
-        response = client.get("/deployments/1")
+        response = client.get(f"{settings.api_prefix}/deployments/1")
         assert response.status_code == 200
         assert response.json()["id"] == 1
 
@@ -31,7 +32,10 @@ def test_create_deployment(client):
             id=1, point_id=1, recorder_id=1, phase=1
         )
 
-        response = client.post("/deployments/", json={"point_id": 1, "recorder_id": 1})
+        response = client.post(
+            f"{settings.api_prefix}/deployments/",
+            json={"point_id": 1, "recorder_id": 1},
+        )
         assert response.status_code == 200
         assert response.json()["phase"] == 1
 
@@ -43,6 +47,8 @@ def test_update_deployment(client):
             id=1, point_id=1, recorder_id=1, phase=1, description="Updated"
         )
 
-        response = client.put("/deployments/1", json={"description": "Updated"})
+        response = client.put(
+            f"{settings.api_prefix}/deployments/1", json={"description": "Updated"}
+        )
         assert response.status_code == 200
         assert response.json()["description"] == "Updated"

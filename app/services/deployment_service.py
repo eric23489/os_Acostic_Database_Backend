@@ -1,6 +1,7 @@
 from fastapi import HTTPException, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
+from geoalchemy2.elements import WKTElement
 
 from app.models.deployment import DeploymentInfo
 from app.schemas.deployment import DeploymentCreate, DeploymentUpdate
@@ -46,6 +47,16 @@ class DeploymentService:
         deployment_data = deployment_in.model_dump()
         deployment_data["phase"] = new_phase
 
+        # 自動將經緯度轉換為 PostGIS Geometry
+        if (
+            deployment_in.gps_lat_exe is not None
+            and deployment_in.gps_lon_exe is not None
+        ):
+            deployment_data["geom_exe"] = WKTElement(
+                f"POINT({deployment_in.gps_lon_exe} {deployment_in.gps_lat_exe})",
+                srid=4326,
+            )
+
         db_obj = DeploymentInfo(**deployment_data)
         self.db.add(db_obj)
         self.db.commit()
@@ -57,6 +68,14 @@ class DeploymentService:
     ) -> DeploymentInfo:
         deployment = self.get_deployment(deployment_id)
         update_data = deployment_in.model_dump(exclude_unset=True)
+
+        # 若更新了經緯度，同步更新 Geometry
+        if "gps_lat_exe" in update_data or "gps_lon_exe" in update_data:
+            lat = update_data.get("gps_lat_exe", deployment.gps_lat_exe)
+            lon = update_data.get("gps_lon_exe", deployment.gps_lon_exe)
+            if lat is not None and lon is not None:
+                update_data["geom_exe"] = WKTElement(f"POINT({lon} {lat})", srid=4326)
+
         for field, value in update_data.items():
             setattr(deployment, field, value)
 
