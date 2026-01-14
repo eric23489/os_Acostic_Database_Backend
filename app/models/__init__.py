@@ -3,6 +3,5 @@ from .project import ProjectInfo
 from .deployment import DeploymentInfo
 from .point import PointInfo
 from .audio import AudioInfo
-from .detections import CetaceanInfo
 from .recorder import RecorderInfo
 from app.db.base import Base
