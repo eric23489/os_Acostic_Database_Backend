@@ -32,15 +32,38 @@ target_metadata = Base.metadata
 
 # Ignore PostGIS 相關的系統表格和 Tiger Geocoder 產生的表格
 IGNORE_TABLES = {
-    'spatial_ref_sys', 'topology', 'layer', 'direction_lookup',
-    'tiger', 'us_gaz', 'zip_state', 'zip_state_loc'
+    "spatial_ref_sys",
+    "topology",
+    "layer",
+    "direction_lookup",
+    "tiger",
+    "us_gaz",
+    "zip_state",
+    "zip_state_loc",
 }
 # PostGIS Tiger Geocoder 產生的表格通常很多，可以用前綴判斷
 IGNORE_PREFIXES = {
-    'tiger_', 'addr', 'bg', 'county', 'cousub', 'edges', 'faces', 
-    'featnames', 'loader_', 'pagc_', 'place', 'secondary_', 'state', 
-    'street_', 'tabblock', 'tract', 'zcta5', 'zip_lookup', 'geocode_settings'
-    }
+    "tiger_",
+    "addr",
+    "bg",
+    "county",
+    "cousub",
+    "edges",
+    "faces",
+    "featnames",
+    "loader_",
+    "pagc_",
+    "place",
+    "secondary_",
+    "state",
+    "street_",
+    "tabblock",
+    "tract",
+    "zcta5",
+    "zip_lookup",
+    "geocode_settings",
+}
+
 
 def include_object(object, name, type_, reflected, compare_to):
     # 如果是表格類型
@@ -52,7 +75,7 @@ def include_object(object, name, type_, reflected, compare_to):
         for prefix in IGNORE_PREFIXES:
             if name.startswith(prefix):
                 return False
-    
+
     return True
 
 
@@ -74,8 +97,7 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
-        include_object=include_object, # 忽略指定的表格
-
+        include_object=include_object,  # 忽略指定的表格
     )
 
     with context.begin_transaction():
@@ -97,10 +119,9 @@ def run_migrations_online() -> None:
 
     with connectable.connect() as connection:
         context.configure(
-            connection=connection, 
-            target_metadata=target_metadata, 
-            include_object=include_object, # 忽略指定的表格
-
+            connection=connection,
+            target_metadata=target_metadata,
+            include_object=include_object,  # 忽略指定的表格
         )
 
         with context.begin_transaction():

@@ -10,6 +10,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.sql import func
 from app.db.base import Base
+from app.enums.enums import RecorderStatus
 
 
 class RecorderInfo(Base):
@@ -22,7 +23,7 @@ class RecorderInfo(Base):
     sensitivity = Column(Float, nullable=False)
     high_gain = Column(Float)
     low_gain = Column(Float)
-    status = Column(String(50), default="in-service")
+    status = Column(String(50), default=RecorderStatus.IN_SERVICE.value)
     owner = Column(String(100), default="Ocean Sound")
     recorder_channels = Column(SmallInteger, default=1)
     description = Column(Text)

@@ -9,6 +9,7 @@ from sqlalchemy import (
     UniqueConstraint,
 )
 from sqlalchemy.sql import func
+from sqlalchemy import Computed
 from geoalchemy2 import Geometry
 from app.db.base import Base
 
@@ -26,7 +27,12 @@ class DeploymentInfo(Base):
     return_time = Column(DateTime(timezone=True))
     gps_lat_exe = Column(Float)
     gps_lon_exe = Column(Float)
-    geom_exe = Column(Geometry("POINT", srid=4326))
+    geom_exe = Column(
+        Geometry("POINT", srid=4326),
+        Computed(
+            "ST_SetSRID(ST_MakePoint(gps_lon_exe, gps_lat_exe), 4326)", persisted=True
+        ),
+    )
     depth_exe = Column(Float)
     fs = Column(Integer)
     sensitivity = Column(Float)

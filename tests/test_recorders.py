@@ -12,6 +12,7 @@ def test_get_recorders(client):
         response = client.get(f"{settings.api_prefix}/recorders/")
         assert response.status_code == 200
         assert response.json() == []
+        mock_service.get_recorders.assert_called_once()
 
 
 def test_get_recorder(client):
@@ -24,6 +25,7 @@ def test_get_recorder(client):
         response = client.get(f"{settings.api_prefix}/recorders/1")
         assert response.status_code == 200
         assert response.json()["sn"] == "SN123"
+        mock_service.get_recorder.assert_called_once_with(1)
 
 
 def test_create_recorder(client):
@@ -44,6 +46,8 @@ def test_create_recorder(client):
         )
         assert response.status_code == 200
         assert response.json()["sn"] == "SN123"
+        mock_service.create_recorder.assert_called_once()
+        assert mock_service.create_recorder.call_args[0][0].sn == "SN123"
 
 
 def test_update_recorder(client):
@@ -58,6 +62,9 @@ def test_update_recorder(client):
         )
         assert response.status_code == 200
         assert response.json()["sn"] == "SN123_UPDATED"
+        mock_service.update_recorder.assert_called_once()
+        assert mock_service.update_recorder.call_args[0][0] == 1
+        assert mock_service.update_recorder.call_args[0][1].sn == "SN123_UPDATED"
 
 
 def test_create_recorder_duplicate(client):
@@ -79,3 +86,4 @@ def test_create_recorder_duplicate(client):
         )
         assert response.status_code == 400
         assert "already exists" in response.json()["detail"]
+        mock_service.create_recorder.assert_called_once()

@@ -85,6 +85,7 @@ class RecorderService:
         for field, value in update_data.items():
             setattr(db_recorder, field, value)
 
+        self.db.add(db_recorder)
         self.db.commit()
         self.db.refresh(db_recorder)
 

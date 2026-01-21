@@ -1,12 +1,13 @@
 from typing import Optional, Any, Dict
 from datetime import datetime
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
+
 
 class AudioBase(BaseModel):
     deployment_id: int
     file_name: str
     object_key: str
-    file_format: Optional[str] = 'wav'
+    file_format: Optional[str] = "wav"
     file_size: Optional[int] = None
     checksum: Optional[str] = None
     record_time: Optional[datetime] = None
@@ -19,8 +20,10 @@ class AudioBase(BaseModel):
     meta_json: Optional[Dict[str, Any]] = None
     is_cold_storage: Optional[bool] = False
 
+
 class AudioCreate(AudioBase):
     pass
+
 
 class AudioUpdate(BaseModel):
     deployment_id: Optional[int] = None
@@ -39,9 +42,9 @@ class AudioUpdate(BaseModel):
     meta_json: Optional[Dict[str, Any]] = None
     is_cold_storage: Optional[bool] = None
 
+
 class AudioResponse(AudioBase):
     id: int
     updated_at: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

@@ -14,6 +14,7 @@ def test_get_projects(client):
         assert response.status_code == 200
         assert len(response.json()) == 1
         assert response.json()[0]["name"] == "Project A"
+        mock_service.get_projects.assert_called_once()
 
 
 def test_get_project(client):
@@ -26,6 +27,7 @@ def test_get_project(client):
         response = client.get(f"{settings.api_prefix}/projects/1")
         assert response.status_code == 200
         assert response.json()["id"] == 1
+        mock_service.get_project.assert_called_once_with(1)
 
 
 def test_create_project(client):
@@ -41,6 +43,8 @@ def test_create_project(client):
         )
         assert response.status_code == 200
         assert response.json()["name"] == "New Project"
+        mock_service.create_project.assert_called_once()
+        assert mock_service.create_project.call_args[0][0].name == "New Project"
 
 
 def test_update_project(client):
@@ -55,3 +59,6 @@ def test_update_project(client):
         )
         assert response.status_code == 200
         assert response.json()["name"] == "Updated Project"
+        mock_service.update_project.assert_called_once()
+        assert mock_service.update_project.call_args[0][0] == 1
+        assert mock_service.update_project.call_args[0][1].name == "Updated Project"

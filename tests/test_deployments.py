@@ -11,6 +11,7 @@ def test_get_deployments(client):
         response = client.get(f"{settings.api_prefix}/deployments/?point_id=1")
         assert response.status_code == 200
         assert response.json() == []
+        mock_service.get_deployments.assert_called_once()
 
 
 def test_get_deployment(client):
@@ -23,6 +24,7 @@ def test_get_deployment(client):
         response = client.get(f"{settings.api_prefix}/deployments/1")
         assert response.status_code == 200
         assert response.json()["id"] == 1
+        mock_service.get_deployment.assert_called_once_with(1)
 
 
 def test_create_deployment(client):
@@ -38,6 +40,8 @@ def test_create_deployment(client):
         )
         assert response.status_code == 200
         assert response.json()["phase"] == 1
+        mock_service.create_deployment.assert_called_once()
+        assert mock_service.create_deployment.call_args[0][0].point_id == 1
 
 
 def test_update_deployment(client):
@@ -52,3 +56,6 @@ def test_update_deployment(client):
         )
         assert response.status_code == 200
         assert response.json()["description"] == "Updated"
+        mock_service.update_deployment.assert_called_once()
+        assert mock_service.update_deployment.call_args[0][0] == 1
+        assert mock_service.update_deployment.call_args[0][1].description == "Updated"
