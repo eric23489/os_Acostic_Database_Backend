@@ -4,7 +4,12 @@ from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_user
 from app.db.session import get_db
-from app.schemas.point import PointCreate, PointResponse, PointUpdate
+from app.schemas.point import (
+    PointCreate,
+    PointResponse,
+    PointUpdate,
+    PointWithProjectResponse,
+)
 from app.services.point_service import PointService
 
 router = APIRouter(prefix="/points", tags=["points"])
@@ -28,6 +33,18 @@ def get_point(
     current_user=Depends(get_current_user),
 ):
     return PointService(db).get_point(point_id)
+
+
+@router.get("/{point_id}/details", response_model=PointWithProjectResponse)
+def get_point_details(
+    point_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """
+    Get a single point with its associated project details.
+    """
+    return PointService(db).get_point_details(point_id)
 
 
 @router.post("/", response_model=PointResponse)

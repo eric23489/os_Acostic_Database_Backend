@@ -9,6 +9,7 @@ from sqlalchemy import (
     UniqueConstraint,
 )
 from sqlalchemy.sql import func
+from sqlalchemy.orm import relationship
 from sqlalchemy import Computed
 from geoalchemy2 import Geometry
 from app.db.base import Base
@@ -19,6 +20,7 @@ class PointInfo(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     project_id = Column(Integer, ForeignKey("project_info.id"), nullable=False)
+    project = relationship("ProjectInfo")
     name = Column(String(50), nullable=False)
     gps_lat_plan = Column(Float)
     gps_lon_plan = Column(Float)

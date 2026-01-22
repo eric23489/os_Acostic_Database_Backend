@@ -1,6 +1,6 @@
 from typing import Optional
 from datetime import datetime
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.enums.enums import DeploymentStatus
 
@@ -13,8 +13,8 @@ class DeploymentBase(BaseModel):
     end_time: Optional[datetime] = None
     deploy_time: Optional[datetime] = None
     return_time: Optional[datetime] = None
-    gps_lat_exe: Optional[float] = None
-    gps_lon_exe: Optional[float] = None
+    gps_lat_exe: Optional[float] = Field(None, ge=-90, le=90)
+    gps_lon_exe: Optional[float] = Field(None, ge=-180, le=180)
     depth_exe: Optional[float] = None
     fs: Optional[int] = None
     sensitivity: Optional[float] = None
@@ -35,8 +35,8 @@ class DeploymentUpdate(BaseModel):
     end_time: Optional[datetime] = None
     deploy_time: Optional[datetime] = None
     return_time: Optional[datetime] = None
-    gps_lat_exe: Optional[float] = None
-    gps_lon_exe: Optional[float] = None
+    gps_lat_exe: Optional[float] = Field(None, ge=-90, le=90)
+    gps_lon_exe: Optional[float] = Field(None, ge=-180, le=180)
     depth_exe: Optional[float] = None
     fs: Optional[int] = None
     sensitivity: Optional[float] = None

@@ -1,13 +1,14 @@
 from typing import Optional
 from datetime import datetime
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
+from app.schemas.project import ProjectResponse
 
 
 class PointBase(BaseModel):
     project_id: int
     name: str
-    gps_lat_plan: Optional[float] = None
-    gps_lon_plan: Optional[float] = None
+    gps_lat_plan: Optional[float] = Field(None, ge=-90, le=90)
+    gps_lon_plan: Optional[float] = Field(None, ge=-180, le=180)
     depth_plan: Optional[float] = None
     description: Optional[str] = None
 
@@ -19,8 +20,8 @@ class PointCreate(PointBase):
 class PointUpdate(BaseModel):
     project_id: Optional[int] = None
     name: Optional[str] = None
-    gps_lat_plan: Optional[float] = None
-    gps_lon_plan: Optional[float] = None
+    gps_lat_plan: Optional[float] = Field(None, ge=-90, le=90)
+    gps_lon_plan: Optional[float] = Field(None, ge=-180, le=180)
     depth_plan: Optional[float] = None
     description: Optional[str] = None
 
@@ -31,3 +32,7 @@ class PointResponse(PointBase):
     updated_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class PointWithProjectResponse(PointResponse):
+    project: ProjectResponse
