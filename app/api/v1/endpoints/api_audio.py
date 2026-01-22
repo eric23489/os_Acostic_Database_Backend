@@ -4,7 +4,12 @@ from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_user
 from app.db.session import get_db
-from app.schemas.audio import AudioCreate, AudioResponse, AudioUpdate
+from app.schemas.audio import (
+    AudioCreate,
+    AudioResponse,
+    AudioUpdate,
+    AudioWithDetailsResponse,
+)
 from app.services.audio_service import AudioService
 
 router = APIRouter(prefix="/audio", tags=["audio"])
@@ -30,6 +35,15 @@ def get_audio(
     current_user=Depends(get_current_user),
 ):
     return AudioService(db).get_audio(audio_id)
+
+
+@router.get("/{audio_id}/details", response_model=AudioWithDetailsResponse)
+def get_audio_details(
+    audio_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    return AudioService(db).get_audio_details(audio_id)
 
 
 @router.post("/", response_model=AudioResponse)

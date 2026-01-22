@@ -1,6 +1,7 @@
 from typing import Optional, Any, Dict
 from datetime import datetime
 from pydantic import BaseModel, ConfigDict
+from app.schemas.deployment import DeploymentWithDetailsResponse
 
 
 class AudioBase(BaseModel):
@@ -48,3 +49,7 @@ class AudioResponse(AudioBase):
     updated_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class AudioWithDetailsResponse(AudioResponse):
+    deployment: DeploymentWithDetailsResponse

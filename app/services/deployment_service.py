@@ -1,8 +1,9 @@
 from fastapi import HTTPException, status
 from sqlalchemy import func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.models.deployment import DeploymentInfo
+from app.models.point import PointInfo
 from app.schemas.deployment import DeploymentCreate, DeploymentUpdate
 
 
@@ -13,6 +14,23 @@ class DeploymentService:
     def get_deployment(self, deployment_id: int) -> DeploymentInfo:
         deployment = (
             self.db.query(DeploymentInfo)
+            .filter(DeploymentInfo.id == deployment_id)
+            .first()
+        )
+        if not deployment:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Deployment not found",
+            )
+        return deployment
+
+    def get_deployment_details(self, deployment_id: int) -> DeploymentInfo:
+        deployment = (
+            self.db.query(DeploymentInfo)
+            .options(
+                joinedload(DeploymentInfo.point).joinedload(PointInfo.project),
+                joinedload(DeploymentInfo.recorder),
+            )
             .filter(DeploymentInfo.id == deployment_id)
             .first()
         )

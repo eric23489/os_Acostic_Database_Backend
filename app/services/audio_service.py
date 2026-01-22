@@ -1,7 +1,9 @@
 from fastapi import HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.models.audio import AudioInfo
+from app.models.deployment import DeploymentInfo
+from app.models.point import PointInfo
 from app.schemas.audio import AudioCreate, AudioUpdate
 
 
@@ -15,6 +17,24 @@ class AudioService:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Audio not found",
+            )
+        return audio
+
+    def get_audio_details(self, audio_id: int) -> AudioInfo:
+        audio = (
+            self.db.query(AudioInfo)
+            .options(
+                joinedload(AudioInfo.deployment)
+                .joinedload(DeploymentInfo.point)
+                .joinedload(PointInfo.project),
+                joinedload(AudioInfo.deployment).joinedload(DeploymentInfo.recorder),
+            )
+            .filter(AudioInfo.id == audio_id)
+            .first()
+        )
+        if not audio:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Audio not found"
             )
         return audio
 

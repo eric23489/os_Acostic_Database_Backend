@@ -3,6 +3,8 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.enums.enums import DeploymentStatus
+from app.schemas.point import PointWithProjectResponse
+from app.schemas.recorder import RecorderResponse
 
 
 class DeploymentBase(BaseModel):
@@ -51,3 +53,8 @@ class DeploymentResponse(DeploymentBase):
     updated_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class DeploymentWithDetailsResponse(DeploymentResponse):
+    point: PointWithProjectResponse
+    recorder: RecorderResponse

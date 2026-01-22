@@ -9,6 +9,7 @@ from sqlalchemy import (
     UniqueConstraint,
 )
 from sqlalchemy.sql import func
+from sqlalchemy.orm import relationship
 from sqlalchemy import Computed
 from geoalchemy2 import Geometry
 from app.db.base import Base
@@ -19,7 +20,9 @@ class DeploymentInfo(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     point_id = Column(Integer, ForeignKey("point_info.id"), nullable=False)
+    point = relationship("PointInfo")
     recorder_id = Column(Integer, ForeignKey("recorder_info.id"), nullable=False)
+    recorder = relationship("RecorderInfo")
     phase = Column(Integer, default=1)
     start_time = Column(DateTime(timezone=True), server_default=func.now())
     end_time = Column(DateTime(timezone=True))

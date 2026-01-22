@@ -9,6 +9,7 @@ from sqlalchemy import (
     Boolean,
     BigInteger,
 )
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from app.db.base import Base
@@ -18,6 +19,7 @@ class AudioInfo(Base):
     __tablename__ = "audio_info"
     id = Column(Integer, primary_key=True)
     deployment_id = Column(Integer, ForeignKey("deployment_info.id"), nullable=False)
+    deployment = relationship("DeploymentInfo")
     file_name = Column(String(255), nullable=False)
     object_key = Column(String(512), unique=True, nullable=False)
     file_format = Column(String(10))

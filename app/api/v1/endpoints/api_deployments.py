@@ -8,6 +8,7 @@ from app.schemas.deployment import (
     DeploymentCreate,
     DeploymentResponse,
     DeploymentUpdate,
+    DeploymentWithDetailsResponse,
 )
 from app.services.deployment_service import DeploymentService
 
@@ -32,6 +33,15 @@ def get_deployment(
     current_user=Depends(get_current_user),
 ):
     return DeploymentService(db).get_deployment(deployment_id)
+
+
+@router.get("/{deployment_id}/details", response_model=DeploymentWithDetailsResponse)
+def get_deployment_details(
+    deployment_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    return DeploymentService(db).get_deployment_details(deployment_id)
 
 
 @router.post("/", response_model=DeploymentResponse)
