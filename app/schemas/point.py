@@ -1,6 +1,6 @@
 from typing import Optional
-from datetime import datetime
-from pydantic import BaseModel, ConfigDict, Field
+from datetime import datetime, timezone, timedelta
+from pydantic import BaseModel, ConfigDict, Field, field_serializer
 from app.schemas.project import ProjectResponse
 
 
@@ -32,6 +32,12 @@ class PointResponse(PointBase):
     updated_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+    @field_serializer("created_at", "updated_at")
+    def serialize_dt(self, dt: Optional[datetime], _info):
+        if dt is None:
+            return None
+        return dt.astimezone(timezone(timedelta(hours=8)))
 
 
 class PointWithProjectResponse(PointResponse):
