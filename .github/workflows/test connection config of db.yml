@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [ main, eric23489/auth-token-flows ]
+    branches: [ main, eric23489/feature/add-new-endpoint ]
   pull_request:
     branches: [ main ]
 

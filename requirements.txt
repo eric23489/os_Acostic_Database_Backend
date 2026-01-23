@@ -9,3 +9,4 @@ bcrypt
 python-jose[cryptography]
 pytest
 boto3
+moto[s3]
