@@ -1,4 +1,4 @@
-from typing import Optional, Any, Dict
+from typing import Optional, Any, Dict, List
 from datetime import datetime
 from pydantic import BaseModel, ConfigDict
 from app.schemas.deployment import DeploymentWithDetailsResponse
@@ -53,3 +53,29 @@ class AudioResponse(AudioBase):
 
 class AudioWithDetailsResponse(AudioResponse):
     deployment: DeploymentWithDetailsResponse
+
+
+class PresignedUrlRequest(BaseModel):
+    project_id: str
+    project_name: str
+    point_id: str
+    point_name: str
+    filename: str
+
+
+class PresignedUrlResponse(BaseModel):
+    presigned_url: str
+    bucket: str
+    key: str
+
+
+class PresignedUrlBatchRequest(BaseModel):
+    project_id: str
+    project_name: str
+    point_id: str
+    point_name: str
+    filenames: List[str]
+
+
+class PresignedUrlBatchResponse(PresignedUrlResponse):
+    filename: str
