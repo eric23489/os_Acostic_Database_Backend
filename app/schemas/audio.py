@@ -71,9 +71,9 @@ class AudioWithDetailsResponse(AudioResponse):
 
 
 class PresignedUrlRequest(BaseModel):
-    project_id: str
+    project_id: int
     project_name: str
-    point_id: str
+    point_id: int
     point_name: str
     filename: str
 
@@ -85,9 +85,9 @@ class PresignedUrlResponse(BaseModel):
 
 
 class PresignedUrlBatchRequest(BaseModel):
-    project_id: str
+    project_id: int
     project_name: str
-    point_id: str
+    point_id: int
     point_name: str
     filenames: List[str]
 

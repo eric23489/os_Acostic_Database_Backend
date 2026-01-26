@@ -21,7 +21,7 @@ class AudioInfo(Base):
     deployment_id = Column(Integer, ForeignKey("deployment_info.id"), nullable=False)
     deployment = relationship("DeploymentInfo")
     file_name = Column(String(255), nullable=False)
-    object_key = Column(String(512), unique=True, nullable=False)
+    object_key = Column(String(1024), unique=True, nullable=False)
     file_format = Column(String(10))
     file_size = Column(BigInteger)
     checksum = Column(String(64))
