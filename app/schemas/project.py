@@ -1,3 +1,4 @@
+import re
 from typing import Optional
 from datetime import datetime, timezone, timedelta
 from pydantic import BaseModel, ConfigDict, field_validator, field_serializer
@@ -5,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, field_validator, field_serializer
 
 class ProjectBase(BaseModel):
     name: str
+    name_zh: Optional[str] = None
     area: Optional[str] = None
     description: Optional[str] = None
     start_time: Optional[datetime] = None
@@ -15,6 +17,25 @@ class ProjectBase(BaseModel):
     contact_name: Optional[str] = None
     contact_phone: Optional[str] = None
     contact_email: Optional[str] = None
+
+    @field_validator("name")
+    @classmethod
+    def validate_project_name(cls, v: str) -> str:
+        # MinIO/S3 Bucket naming rules:
+        # 1. Length 3-63 characters
+        # 2. Lowercase letters, numbers, dots, hyphens
+        # 3. Start/end with letter or number
+        # 4. No IP address format
+
+        # Auto-convert to lowercase
+        v = v.lower()
+
+        if not re.match(r"^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$", v):
+            raise ValueError(
+                "Project name must be 3-63 chars, lowercase, numbers, dots, hyphens only, and start/end with alphanumeric."
+            )
+
+        return v
 
     @field_validator("start_time", "end_time")
     @classmethod
@@ -32,6 +53,7 @@ class ProjectCreate(ProjectBase):
 
 class ProjectUpdate(BaseModel):
     name: Optional[str] = None
+    name_zh: Optional[str] = None
     area: Optional[str] = None
     description: Optional[str] = None
     start_time: Optional[datetime] = None
