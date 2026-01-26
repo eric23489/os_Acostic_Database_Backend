@@ -9,7 +9,7 @@ def test_datetime_timezone_validator():
     """
     # Input naive datetime: 2024-01-01 12:00:00
     naive_dt = datetime(2024, 1, 1, 12, 0, 0)
-    project = ProjectCreate(name="Test Project", start_time=naive_dt)
+    project = ProjectCreate(name="test-project", start_time=naive_dt)
 
     # Should be converted to aware datetime with UTC+8
     assert project.start_time.tzinfo is not None
@@ -23,7 +23,7 @@ def test_datetime_serializer():
     """
     # Simulate a UTC datetime from database (e.g., 04:00 UTC = 12:00 UTC+8)
     utc_dt = datetime(2024, 1, 1, 4, 0, 0, tzinfo=timezone.utc)
-    project = ProjectResponse(id=1, name="Test Project", start_time=utc_dt)
+    project = ProjectResponse(id=1, name="test-project", start_time=utc_dt)
 
     # Dump model to JSON-compatible dict
     data = project.model_dump(mode="json")
