@@ -8,6 +8,7 @@ from sqlalchemy import (
     JSON,
     Boolean,
     BigInteger,
+    Index,
 )
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -21,7 +22,7 @@ class AudioInfo(Base):
     deployment_id = Column(Integer, ForeignKey("deployment_info.id"), nullable=False)
     deployment = relationship("DeploymentInfo")
     file_name = Column(String(255), nullable=False)
-    object_key = Column(String(1024), unique=True, nullable=False)
+    object_key = Column(String(1024), nullable=False)
     file_format = Column(String(10))
     file_size = Column(BigInteger)
     checksum = Column(String(64))
@@ -36,4 +37,15 @@ class AudioInfo(Base):
     is_cold_storage = Column(Boolean, default=False)
     updated_at = Column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+    is_deleted = Column(Boolean, default=False, nullable=False)
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        Index(
+            "ix_audio_object_key_active",
+            "object_key",
+            unique=True,
+            postgresql_where=(is_deleted.is_(False)),
+        ),
     )

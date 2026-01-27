@@ -4,6 +4,7 @@ from sqlalchemy import (
     String,
     Boolean,
     DateTime,
+    Index,
 )
 from sqlalchemy.sql import func
 
@@ -14,7 +15,7 @@ from app.enums.enums import UserRole
 class UserInfo(Base):
     __tablename__ = "user_info"
     id = Column(Integer, primary_key=True)
-    email = Column(String(255), unique=True, nullable=False)
+    email = Column(String(255), nullable=False)
     password_hash = Column(String(255), nullable=False)
     full_name = Column(String(100))
     role = Column(String(100), default=UserRole.USER.value)
@@ -24,4 +25,15 @@ class UserInfo(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+    is_deleted = Column(Boolean, default=False, nullable=False)
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        Index(
+            "ix_user_email_active",
+            "email",
+            unique=True,
+            postgresql_where=(is_deleted.is_(False)),
+        ),
     )
