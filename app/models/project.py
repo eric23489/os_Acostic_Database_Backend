@@ -8,7 +8,7 @@ class ProjectInfo(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100), unique=True, nullable=False)
-    name_zh = Column(String(100), nullable=True)
+    name_zh = Column(String(100), unique=True, nullable=True)
     area = Column(String(100))
     start_time = Column(DateTime(timezone=True))
     end_time = Column(DateTime(timezone=True))

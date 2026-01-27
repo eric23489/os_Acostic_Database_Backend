@@ -5,7 +5,7 @@ from pydantic import BaseModel, ConfigDict, field_validator, field_serializer
 
 
 class ProjectBase(BaseModel):
-    name: str
+    name: Optional[str] = None
     name_zh: Optional[str] = None
     area: Optional[str] = None
     description: Optional[str] = None
@@ -20,7 +20,7 @@ class ProjectBase(BaseModel):
 
     @field_validator("name")
     @classmethod
-    def validate_project_name(cls, v: str) -> str:
+    def validate_project_name(cls, v: Optional[str]) -> Optional[str]:
         # MinIO/S3 Bucket naming rules:
         # 1. Length 3-63 characters
         # 2. Lowercase letters, numbers, dots, hyphens
@@ -67,6 +67,7 @@ class ProjectUpdate(BaseModel):
 
 
 class ProjectResponse(ProjectBase):
+    name: str  # In response, name is always present
     id: int
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
