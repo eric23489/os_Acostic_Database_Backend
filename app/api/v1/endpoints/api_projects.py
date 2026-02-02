@@ -1,4 +1,6 @@
+from datetime import datetime
 from typing import List
+
 from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -50,10 +52,12 @@ def update_project(
     return ProjectService(db).update_project(project_id, project)
 
 
-def background_delete_project_audios(project_id: int, user_id: int):
+def background_delete_project_audios(
+    project_id: int, user_id: int, deleted_at: datetime
+):
     db = SessionLocal()
     try:
-        ProjectService(db).delete_project_audios(project_id, user_id)
+        ProjectService(db).delete_project_audios(project_id, user_id, deleted_at)
     finally:
         db.close()
 
@@ -67,7 +71,10 @@ def delete_project(
 ):
     project = ProjectService(db).delete_project(project_id, current_user.id)
     background_tasks.add_task(
-        background_delete_project_audios, project_id, current_user.id
+        background_delete_project_audios,
+        project_id,
+        current_user.id,
+        project.deleted_at,
     )
     return project
 

@@ -88,7 +88,7 @@
 - [x] 使用者登入/註冊 API
 - [x] Project/Point/Deployment/Audio CRUD API
 - [x] 軟刪除功能 (Soft Delete)
-- [ ] Recorder 刪除/還原端點
+- [x] Recorder 刪除/還原端點
 
 ## 8. 設計模式 (Design Patterns)
 

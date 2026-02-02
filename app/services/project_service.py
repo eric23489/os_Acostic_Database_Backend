@@ -169,14 +169,16 @@ class ProjectService:
         self.db.refresh(project)
         return project
 
-    def delete_project_audios(self, project_id: int, user_id: int):
+    def delete_project_audios(
+        self, project_id: int, user_id: int, deleted_at: datetime
+    ):
         """
         Background task to delete audios associated with a project.
+        Uses the same deleted_at timestamp as the parent project for consistency.
         """
-        now = datetime.now(timezone.utc)
         update_values = {
             "is_deleted": True,
-            "deleted_at": now,
+            "deleted_at": deleted_at,
             "deleted_by": user_id,
         }
 
