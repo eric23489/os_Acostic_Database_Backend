@@ -9,6 +9,7 @@ from sqlalchemy import (
     Boolean,
     BigInteger,
     Index,
+    text,
 )
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -19,7 +20,9 @@ from app.db.base import Base
 class AudioInfo(Base):
     __tablename__ = "audio_info"
     id = Column(Integer, primary_key=True)
-    deployment_id = Column(Integer, ForeignKey("deployment_info.id"), nullable=False)
+    deployment_id = Column(
+        Integer, ForeignKey("deployment_info.id"), nullable=False, index=True
+    )
     deployment = relationship("DeploymentInfo")
     file_name = Column(String(255), nullable=False)
     object_key = Column(String(1024), nullable=False)
@@ -38,8 +41,11 @@ class AudioInfo(Base):
     updated_at = Column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
-    is_deleted = Column(Boolean, default=False, nullable=False)
+    is_deleted = Column(
+        Boolean, default=False, nullable=False, server_default=text("false")
+    )
     deleted_at = Column(DateTime(timezone=True), nullable=True)
+    deleted_by = Column(Integer, nullable=True)
 
     __table_args__ = (
         Index(

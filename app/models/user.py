@@ -5,6 +5,7 @@ from sqlalchemy import (
     Boolean,
     DateTime,
     Index,
+    text,
 )
 from sqlalchemy.sql import func
 
@@ -26,8 +27,11 @@ class UserInfo(Base):
     updated_at = Column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
-    is_deleted = Column(Boolean, default=False, nullable=False)
+    is_deleted = Column(
+        Boolean, default=False, nullable=False, server_default=text("false")
+    )
     deleted_at = Column(DateTime(timezone=True), nullable=True)
+    deleted_by = Column(Integer, nullable=True)
 
     __table_args__ = (
         Index(

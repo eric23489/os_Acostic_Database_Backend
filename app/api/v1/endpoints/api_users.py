@@ -81,3 +81,33 @@ def update_user(
             detail="The user doesn't have enough privileges",
         )
     return UserService(db).update_user(user_id, user_in)
+
+
+@router.delete("/{user_id}", response_model=UserResponse)
+def delete_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Admin delete user (soft delete)."""
+    if current_user.role != UserRole.ADMIN.value:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="The user doesn't have enough privileges",
+        )
+    return UserService(db).delete_user(user_id, current_user.id)
+
+
+@router.post("/{user_id}/restore", response_model=UserResponse)
+def restore_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Admin restore user."""
+    if current_user.role != UserRole.ADMIN.value:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="The user doesn't have enough privileges",
+        )
+    return UserService(db).restore_user(user_id)

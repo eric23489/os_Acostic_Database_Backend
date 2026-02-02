@@ -42,7 +42,8 @@ services:
     # 重點 2：覆寫啟動指令
     # 我們在這裡加上 --reload 參數
     # 這樣當程式碼變更時，伺服器會自動重啟，不用手動重開 Docker
-    command: uvicorn app.main:app --host 0.0.0.0 --port ${APP_PORT} --reload
+    command: >
+      sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${APP_PORT} --reload"
 
   # adminer:
   #   image: adminer
