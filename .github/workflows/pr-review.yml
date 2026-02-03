@@ -1,0 +1,193 @@
+name: PR Auto Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+      - main
+      - develop
+      - 'feature/**'
+
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+
+jobs:
+  # Job 1: Code Quality Check
+  code-quality:
+    name: Code Quality Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install flake8 pylint black isort
+
+      - name: Check code formatting with Black
+        run: |
+          black --check app/ tests/ || echo "::warning::Code formatting issues found. Run 'black app/ tests/' to fix."
+        continue-on-error: true
+
+      - name: Check import sorting with isort
+        run: |
+          isort --check-only app/ tests/ || echo "::warning::Import sorting issues found. Run 'isort app/ tests/' to fix."
+        continue-on-error: true
+
+      - name: Run flake8
+        run: |
+          flake8 app/ tests/ --count --select=E9,F63,F7,F82 --show-source --statistics || echo "::error::Critical code issues found"
+        continue-on-error: true
+
+      - name: Run flake8 (warnings)
+        run: |
+          flake8 app/ tests/ --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+        continue-on-error: true
+
+  # Job 2: Run Tests
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Write .env
+        run: |
+          cat > .env <<'EOF'
+          POSTGRES_USER=${{ secrets.DB_USER }}
+          POSTGRES_PASSWORD=${{ secrets.DB_PASSWORD }}
+          POSTGRES_DB=${{ secrets.POSTGRES_DB }}
+          POSTGRES_IP_ADDRESS=db
+          POSTGRES_PORT=5431
+          POSTGRES_PORT_OUT=5431
+          APP_PORT=80
+          APP_PORT_OUT=8000
+          SECRET_KEY=${{ secrets.SECRET_KEY }}
+          ALGORITHM=HS256
+          ACCESS_TOKEN_EXPIRE_MINUTES=30
+          EOF
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest-cov
+
+      - name: Run tests with coverage
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          pytest --cov=app --cov-report=xml --cov-report=term-missing
+        continue-on-error: false
+
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v4
+        if: always()
+        with:
+          file: ./coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+        continue-on-error: true
+
+  # Job 3: Security Check
+  security:
+    name: Security Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install safety
+        run: pip install safety
+
+      - name: Check dependencies for security vulnerabilities
+        run: |
+          pip install -r requirements.txt
+          safety check --json || echo "::warning::Security vulnerabilities found in dependencies"
+        continue-on-error: true
+
+  # Job 4: PR Review Summary
+  review-summary:
+    name: PR Review Summary
+    runs-on: ubuntu-latest
+    needs: [code-quality, test, security]
+    if: always()
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Post review summary
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const jobs = [
+              { name: 'Code Quality Check', result: '${{ needs.code-quality.result }}' },
+              { name: 'Run Tests', result: '${{ needs.test.result }}' },
+              { name: 'Security Check', result: '${{ needs.security.result }}' }
+            ];
+
+            const passed = jobs.filter(j => j.result === 'success').length;
+            const failed = jobs.filter(j => j.result === 'failure').length;
+            const skipped = jobs.filter(j => j.result === 'skipped').length;
+
+            let emoji = '✅';
+            let status = 'passed';
+            if (failed > 0) {
+              emoji = '❌';
+              status = 'failed';
+            } else if (skipped > 0) {
+              emoji = '⚠️';
+              status = 'completed with warnings';
+            }
+
+            const body = `## ${emoji} Automated PR Review Summary
+
+            **Status:** ${status}
+
+            ### Results:
+            ${jobs.map(j => {
+              const icon = j.result === 'success' ? '✅' : j.result === 'failure' ? '❌' : '⚠️';
+              return `- ${icon} **${j.name}**: ${j.result}`;
+            }).join('\n')}
+
+            ### Details:
+            - Total checks: ${jobs.length}
+            - Passed: ${passed}
+            - Failed: ${failed}
+            - Skipped: ${skipped}
+
+            ${failed > 0 ? '\n⚠️ Please review the failed checks and make necessary corrections.' : ''}
+            ${passed === jobs.length ? '\n🎉 All checks passed! Great work!' : ''}
+
+            ---
+            *This is an automated review. For detailed logs, check the Actions tab.*`;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: body
+            });
