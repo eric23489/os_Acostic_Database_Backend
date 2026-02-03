@@ -1,3 +1,4 @@
+from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
@@ -5,7 +6,8 @@ from sqlalchemy.orm import Session
 from app.core.security import create_access_token
 from app.core.auth import get_current_user
 from app.db.session import get_db
-from app.schemas.user import Token, UserCreate, UserResponse
+from app.enums.enums import UserRole
+from app.schemas.user import Token, UserCreate, UserResponse, UserUpdate
 from app.services.user_service import UserService
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -33,7 +35,49 @@ def login(
     return {"access_token": token, "token_type": "bearer"}
 
 
-@router.get("/protected", response_model=UserResponse)
-def protected_endpoint(current_user=Depends(get_current_user)):
-    """Sample endpoint that requires a valid Bearer token."""
+@router.get("/me", response_model=UserResponse)
+def read_users_me(current_user=Depends(get_current_user)):
+    """Get current logged-in user info."""
     return current_user
+
+
+@router.get("/", response_model=List[UserResponse])
+def read_users(
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Admin query all accounts."""
+    if current_user.role != UserRole.ADMIN.value:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="The user doesn't have enough privileges",
+        )
+    return UserService(db).get_users(skip=skip, limit=limit)
+
+
+@router.put("/me", response_model=UserResponse)
+def update_user_me(
+    user_in: UserUpdate,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Update own data."""
+    return UserService(db).update_user(current_user.id, user_in)
+
+
+@router.put("/{user_id}", response_model=UserResponse)
+def update_user(
+    user_id: int,
+    user_in: UserUpdate,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Admin update data."""
+    if current_user.role != UserRole.ADMIN.value:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="The user doesn't have enough privileges",
+        )
+    return UserService(db).update_user(user_id, user_in)

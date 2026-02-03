@@ -1,5 +1,4 @@
 fastapi[standard]
-uvicorn
 sqlalchemy
 alembic
 psycopg2-binary
@@ -8,5 +7,7 @@ pydantic-settings
 geoalchemy2
 bcrypt
 python-jose[cryptography]
-python-multipart
 pytest
+boto3
+moto[s3]
+pypinyin

@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.core.security import hash_password, verify_password
 from app.enums.enums import UserRole
 from app.models.user import UserInfo
-from app.schemas.user import UserCreate
+from app.schemas.user import UserCreate, UserUpdate
 from app.utils.common import format_welcome_message
 
 
@@ -44,4 +44,31 @@ class UserService:
             return None
         if not verify_password(password, user.password_hash):
             return None
+        if not user.is_active:
+            return None
+        return user
+
+    def get_users(self, skip: int = 0, limit: int = 100) -> list[UserInfo]:
+        return self.db.query(UserInfo).offset(skip).limit(limit).all()
+
+    def update_user(self, user_id: int, user_in: UserUpdate) -> UserInfo:
+        user = self.db.query(UserInfo).filter(UserInfo.id == user_id).first()
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found",
+            )
+
+        update_data = user_in.model_dump(exclude_unset=True)
+        if "password" in update_data:
+            password = update_data.pop("password")
+            if password:
+                user.password_hash = hash_password(password)
+
+        for field, value in update_data.items():
+            setattr(user, field, value)
+
+        self.db.add(user)
+        self.db.commit()
+        self.db.refresh(user)
         return user

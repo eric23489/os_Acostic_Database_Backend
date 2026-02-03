@@ -1,5 +1,5 @@
 try:
-    from pydantic_settings import BaseSettings
+    from pydantic_settings import BaseSettings, SettingsConfigDict
 except ImportError as exc:  # pragma: no cover - dependency guard
     try:
         from pydantic import BaseSettings  # type: ignore
@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     database_url: str = "postgresql://user:password@localhost/acoustic_db"
 
     # Database settings
-    
+
     postgres_user: str
     postgres_password: str
     postgres_db: str
@@ -36,15 +36,16 @@ class Settings(BaseSettings):
     aws_access_key_id: str | None = None
     aws_secret_access_key: str | None = None
     minio_bucket_name: str = "data"
-    
+
     def get_database_url(self) -> str:
         return f"postgresql://{self.postgres_user}:{self.postgres_password}@{self.postgres_ip_address}:{self.postgres_port}/{self.postgres_db}"
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        case_sensitive = False
-        extra = "ignore" # Ignore unexpected environment variables
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+    )
 
 
 settings = Settings()

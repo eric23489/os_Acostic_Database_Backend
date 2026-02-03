@@ -6,8 +6,9 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.db.session import get_db
 from app.models.user import UserInfo
+from app.enums.enums import UserRole
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/users/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.api_prefix}/users/login")
 
 
 def get_current_user(
@@ -31,4 +32,19 @@ def get_current_user(
     user = db.query(UserInfo).filter(UserInfo.email == email).first()
     if not user:
         raise credentials_error
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Inactive user"
+        )
     return user
+
+
+def get_current_admin_user(
+    current_user: UserInfo = Depends(get_current_user),
+) -> UserInfo:
+    if current_user.role != UserRole.ADMIN.value:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="The user doesn't have enough privileges",
+        )
+    return current_user

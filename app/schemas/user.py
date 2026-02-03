@@ -1,6 +1,6 @@
 from typing import Optional
-from datetime import datetime
-from pydantic import BaseModel, EmailStr
+from datetime import datetime, timezone, timedelta
+from pydantic import BaseModel, EmailStr, ConfigDict, field_serializer
 from app.enums.enums import UserRole
 
 
@@ -31,8 +31,13 @@ class UserResponse(UserBase):
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
+
+    @field_serializer("last_login_at", "created_at", "updated_at")
+    def serialize_dt(self, dt: Optional[datetime], _info):
+        if dt is None:
+            return None
+        return dt.astimezone(timezone(timedelta(hours=8)))
 
 
 class Token(BaseModel):
