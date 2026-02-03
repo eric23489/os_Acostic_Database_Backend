@@ -42,9 +42,15 @@ jobs:
                 labels.add('database');
               }
               
-              // Configuration changes
-              if (path.includes('docker') || path.includes('.yml') || path.includes('.yaml')) {
+              // Configuration changes (excluding workflow files)
+              if ((path.includes('docker') || path.endsWith('.yml') || path.endsWith('.yaml')) && 
+                  !path.includes('.github/workflows/')) {
                 labels.add('configuration');
+              }
+              
+              // CI/CD workflow changes
+              if (path.includes('.github/workflows/')) {
+                labels.add('ci-cd');
               }
               
               // Documentation changes

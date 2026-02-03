@@ -36,17 +36,17 @@ jobs:
 
       - name: Check code formatting with Black
         run: |
-          black --check app/ tests/ || echo "::warning::Code formatting issues found. Run 'black app/ tests/' to fix."
+          black --check app/ tests/
         continue-on-error: true
 
       - name: Check import sorting with isort
         run: |
-          isort --check-only app/ tests/ || echo "::warning::Import sorting issues found. Run 'isort app/ tests/' to fix."
+          isort --check-only app/ tests/
         continue-on-error: true
 
-      - name: Run flake8
+      - name: Run flake8 (critical issues)
         run: |
-          flake8 app/ tests/ --count --select=E9,F63,F7,F82 --show-source --statistics || echo "::error::Critical code issues found"
+          flake8 app/ tests/ --count --select=E9,F63,F7,F82 --show-source --statistics
         continue-on-error: true
 
       - name: Run flake8 (warnings)
@@ -104,6 +104,7 @@ jobs:
           file: ./coverage.xml
           flags: unittests
           name: codecov-umbrella
+          token: ${{ secrets.CODECOV_TOKEN }}
         continue-on-error: true
 
   # Job 3: Security Check

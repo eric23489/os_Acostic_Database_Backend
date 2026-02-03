@@ -78,7 +78,8 @@ PR 建立或更新
 #### 類別標籤 (Category Labels)
 - `api` - API 相關變更（`app/api/` 目錄）
 - `database` - 資料庫相關變更（`alembic/`、`app/models/`、`app/db/` 目錄）
-- `configuration` - 設定檔變更（Docker、YAML 檔案）
+- `configuration` - 設定檔變更（Docker、YAML 檔案，但不包含工作流程）
+- `ci-cd` - CI/CD 工作流程變更（`.github/workflows/` 目錄）
 - `documentation` - 文件變更（README、Markdown 檔案）
 - `tests` - 測試相關變更（`tests/` 目錄）
 - `dependencies` - 相依套件變更（`requirements.txt`、`Dockerfile`）

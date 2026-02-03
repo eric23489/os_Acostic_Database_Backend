@@ -7,6 +7,7 @@
 ### 可用的工作流程 (Available Workflows)
 
 1. **CI 測試** (`test connection config of db.yml`)：在指定分支自動安裝相依、生成 `.env` 並執行 `pytest`，確保每次提交都有基本測試。
+   > 註：此檔名包含空格，建議未來重新命名為 `test-connection-config-of-db.yml` 以符合標準命名慣例。
 2. **PR 自動審查** (`pr-review.yml`)：當建立或更新 PR 時，自動執行程式碼品質檢查、測試與安全檢查，並發布審查摘要評論。
 3. **PR 自動標籤** (`pr-labeler.yml`)：根據 PR 變更的檔案類型與大小，自動加上適當的標籤。
 
@@ -70,8 +71,17 @@
 ## 必要設定 (Secrets / Variables)
 
 在 GitHub Repo 的 Settings > Secrets and variables 設定：
-- Secrets：`POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `SECRET_KEY`
+
+### CI 測試所需 (Required for CI Tests)
+- Secrets：`DB_USER`（或 `POSTGRES_USER`）, `DB_PASSWORD`（或 `POSTGRES_PASSWORD`）, `POSTGRES_DB`, `SECRET_KEY`
 - Variables：`POSTGRES_IP_ADDRESS`, `POSTGRES_PORT`, `POSTGRES_PORT_OUT`, `APP_PORT`, `APP_PORT_OUT`, `MINIO_IP_ADDRESS`, `MINIO_PORT`, `MINIO_BUCKET_NAME`, `ALGORITHM`, `ACCESS_TOKEN_EXPIRE_MINUTES`
+
+### PR 自動審查所需 (Required for PR Auto Review)
+- Secrets：
+  - `DB_USER`, `DB_PASSWORD`, `POSTGRES_DB`, `SECRET_KEY` - 用於測試環境
+  - `CODECOV_TOKEN` (選用) - 如需上傳覆蓋率報告至 Codecov
+
+> **注意**：PR 自動審查使用與 CI 測試相同的 secrets。如果 Codecov 上傳失敗，可以忽略（已設定 `continue-on-error: true`）。
 
 本地 `.env` 範例：
 ```env
