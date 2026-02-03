@@ -126,7 +126,7 @@ jobs:
       - name: Check dependencies for security vulnerabilities
         run: |
           pip install -r requirements.txt
-          safety check --json || echo "::warning::Security vulnerabilities found in dependencies"
+          safety check --json
         continue-on-error: true
 
   # Job 4: PR Review Summary
