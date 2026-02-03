@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(git rm:*)",
+      "Bash(docker logs:*)",
+      "Bash(pip install:*)",
+      "Bash(python -m pytest:*)",
+      "Bash(py -m pip install:*)",
+      "Bash(py -m pytest tests/test_soft_delete.py -v --tb=short)",
+      "Bash(py -m pytest tests/test_soft_delete_service.py -v --tb=short)",
+      "Bash(py -m pytest tests/ -v --tb=short)",
+      "Bash(py -m pytest:*)",
+      "Bash(gh issue list:*)",
+      "Bash(gh project:*)",
+      "Bash(gh issue create:*)",
+      "Bash(gh issue close:*)",
+      "Bash(gh auth refresh:*)",
+      "Bash(python:*)",
+      "Bash(gh pr list:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh pr diff:*)",
+      "Bash(gh pr review 7 --comment --body \"$\\(cat <<''EOF''\n## 📝 Code Review\n\n### 整體評價：⭐⭐⭐⭐ \\(4/5\\)\n結構良好，文件完整。以下是幾點建議：\n\n---\n\n### ⚠️ 需要修正的問題\n\n#### 1. Python 版本不一致 \\(重要\\)\n```yaml\n# pr-review.yml 使用\npython-version: \"3.11\"\n\n# 專案標準 \\(CLAUDE.md\\)\nPython 3.14\n```\n**建議:** 至少改為 `python-version: \"3.12\"` 以接近專案標準\n\n---\n\n#### 2. 使用 Black/isort/flake8 而非 Ruff\n專案已配置 `ruff` 作為 linter/formatter（見 `CLAUDE.md` 和 `.pre-commit-config.yaml`），但此 PR 使用 `black` + `isort` + `flake8`。\n\n**差異比較：**\n| 項目 | Black + isort + flake8 | Ruff |\n|------|------------------------|------|\n| 工具數量 | 3 個獨立工具 | 1 個整合工具 |\n| 執行速度 | 較慢 \\(Python\\) | 快 10-100x \\(Rust\\) |\n| 設定檔 | 各自獨立 | 統一 `pyproject.toml` |\n\n**建議改為：**\n```yaml\n- name: Install linting tools\n  run: pip install ruff\n\n- name: Check code formatting\n  run: ruff format --check app/ tests/\n  continue-on-error: true\n\n- name: Run linter\n  run: ruff check app/ tests/\n  continue-on-error: true\n```\n\n這樣可以：\n- 保持 CI 與本地開發工具一致\n- 減少 CI 執行時間\n- 避免格式化標準不一致的問題\n\n---\n\n#### 3. Security Check 建議\n`safety` 免費版功能有限，可考慮改用 `pip-audit`：\n```yaml\n- name: Security check\n  run: |\n    pip install pip-audit\n    pip-audit\n```\n\n---\n\n### ✅ 優點\n- 文件完整，`PR_REVIEW_GUIDE.md` 說明詳細\n- 權限設定最小化\n- 使用 `continue-on-error: true` 的容錯設計\n- 標籤邏輯清晰（分類 + 大小）\n\n---\n\n*Review by Claude Code*\nEOF\n\\)\")",
+      "Bash(gh api:*)"
+    ]
+  }
+}

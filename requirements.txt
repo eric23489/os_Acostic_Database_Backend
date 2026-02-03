@@ -11,3 +11,5 @@ pytest
 boto3
 moto[s3]
 pypinyin
+ruff
+pre-commit

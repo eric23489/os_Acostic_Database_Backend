@@ -9,7 +9,9 @@ from app.models.project import ProjectInfo
 
 def test_create_project_autogenerate_name(mock_db):
     """
-    Test that `name` is auto-generated from `name_zh` if not provided.
+    測試從 name_zh 自動生成 name。
+
+    當只提供 name_zh 時，系統應自動根據中文名稱生成拼音作為 name。
     """
     # 1. 準備資料
     service = ProjectService(mock_db)
@@ -17,8 +19,11 @@ def test_create_project_autogenerate_name(mock_db):
     project_in = ProjectCreate(name_zh="測試專案")
 
     # 2. 設定 Mock DB 行為
-    # 模擬資料庫查詢：檢查名稱時都回傳 None (代表名稱不存在)
-    mock_db.query.return_value.filter.return_value.first.return_value = None
+    # 模擬資料庫查詢：多次 filter().first() 都回傳 None（無名稱衝突）
+    mock_query = MagicMock()
+    mock_query.filter.return_value = mock_query
+    mock_query.first.return_value = None
+    mock_db.query.return_value = mock_query
 
     # 3. 執行 Service 方法
     service.create_project(project_in)

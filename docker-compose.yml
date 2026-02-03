@@ -8,37 +8,56 @@ services:
     # 把資料庫檔案存在本機，避免關掉 Docker 資料就不見
     volumes:
       - D:/Program Files/Docker_DB_volume/os-acoustic-postgres:/var/lib/postgresql/data
-    
+
     command: -p ${POSTGRES_PORT}
-    
+
     ports:
       - "${POSTGRES_PORT_OUT}:${POSTGRES_PORT}"
+
+  minio:
+    image: minio/minio:latest
+    container_name: os-acoustic-minio
+    command: server /data --console-address ":9001"
+    ports:
+      - "${MINIO_PORT_OUT:-9000}:9000"      # S3 API
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"  # Web Console
+    environment:
+      MINIO_ROOT_USER: ${AWS_ACCESS_KEY_ID}
+      MINIO_ROOT_PASSWORD: ${AWS_SECRET_ACCESS_KEY}
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   fastapi-app:
     # build: . 表示使用當前目錄下的 Dockerfile 來建置映像檔
     build: .
-    
+
     # 定義容器名稱，方便識別
     container_name: os-acoustic-backend
-    
+
     # 對應 Port：左邊是電腦的 8000，右邊是容器內的 80
     ports:
-      - "${APP_PORT_OUT}:${APP_PORT}"   
+      - "${APP_PORT_OUT}:${APP_PORT}"
 
     # 掛載 (Volume)
     volumes:
       - ./app:/app/app
 
-      # 掛載 Alembic 設定檔 
+      # 掛載 Alembic 設定檔
       - ./alembic.ini:/app/alembic.ini
       - ./alembic:/app/alembic
 
     env_file:
       - .env
-    # 確保資料庫啟動後才啟動 App
+    # 確保資料庫和 MinIO 啟動後才啟動 App
     depends_on:
       - db
-    
+      - minio
+
     # 重點 2：覆寫啟動指令
     # 我們在這裡加上 --reload 參數
     # 這樣當程式碼變更時，伺服器會自動重啟，不用手動重開 Docker
@@ -50,3 +69,6 @@ services:
   #   restart: always
   #   ports:
   #     - "8080:8080"
+
+volumes:
+  minio_data:

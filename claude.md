@@ -19,6 +19,7 @@
   - Storage: MinIO
 - **基礎設施 (Infrastructure)**:
   - Containerization: Docker, Docker Compose
+  - Object Storage: MinIO (containerized)
 
 ## 3. 專案結構 (Project Structure)
 主要目錄結構說明：
@@ -77,10 +78,13 @@
 - 本地啟動伺服器: `uvicorn app.main:app --reload`
 
 ## 6. 環境變數 (Environment Variables)
-*(僅列出需要的 Key，不要包含真實數值)*
-- `DATABASE_URL`
-- `API_KEY`
-- `JWT_SECRET`
+*(僅列出需要的 Key，不要包含真實數值，參考 `.env.example`)*
+- `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`
+- `POSTGRES_IP_ADDRESS`, `POSTGRES_PORT`, `POSTGRES_PORT_OUT`
+- `SECRET_KEY` (JWT)
+- `APP_PORT`, `APP_PORT_OUT`
+- `MINIO_IP_ADDRESS`, `MINIO_PORT`, `MINIO_PORT_OUT`, `MINIO_CONSOLE_PORT`
+- `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`
 
 ## 7. 目前開發狀態與待辦事項 (Current Status & TODOs)
 - [x] 專案初始化
@@ -89,6 +93,7 @@
 - [x] Project/Point/Deployment/Audio CRUD API
 - [x] 軟刪除功能 (Soft Delete)
 - [x] Recorder 刪除/還原端點
+- [x] MinIO 整合至 Docker Compose
 
 ## 8. 設計模式 (Design Patterns)
 
