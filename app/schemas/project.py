@@ -21,6 +21,10 @@ class ProjectBase(BaseModel):
     @field_validator("name")
     @classmethod
     def validate_project_name(cls, v: Optional[str]) -> Optional[str]:
+        # Allow None - name can be auto-generated from name_zh
+        if v is None:
+            return v
+
         # MinIO/S3 Bucket naming rules:
         # 1. Length 3-63 characters
         # 2. Lowercase letters, numbers, dots, hyphens

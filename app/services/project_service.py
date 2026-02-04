@@ -1,4 +1,6 @@
+import logging
 from datetime import datetime, timedelta, timezone
+
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session, selectinload
 
@@ -9,6 +11,8 @@ from app.models.point import PointInfo
 from app.models.project import ProjectInfo
 from app.schemas.project import ProjectCreate, ProjectUpdate
 from app.utils.naming import generate_slug_from_zh
+
+logger = logging.getLogger(__name__)
 
 
 class ProjectService:
@@ -99,7 +103,7 @@ class ProjectService:
         except Exception as e:
             # Log error or handle it. For now, we might not want to fail the whole request
             # if bucket creation fails, but it's good practice to ensure consistency.
-            print(f"Failed to create MinIO bucket '{db_obj.name}': {e}")
+            logger.error(f"Failed to create MinIO bucket '{db_obj.name}': {e}")
 
         return db_obj
 
