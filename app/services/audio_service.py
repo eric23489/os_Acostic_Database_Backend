@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 
@@ -12,7 +13,11 @@ class AudioService:
         self.db = db
 
     def get_audio(self, audio_id: int) -> AudioInfo:
-        audio = self.db.query(AudioInfo).filter(AudioInfo.id == audio_id).first()
+        audio = (
+            self.db.query(AudioInfo)
+            .filter(AudioInfo.id == audio_id, AudioInfo.is_deleted.is_(False))
+            .first()
+        )
         if not audio:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -29,7 +34,7 @@ class AudioService:
                 .joinedload(PointInfo.project),
                 joinedload(AudioInfo.deployment).joinedload(DeploymentInfo.recorder),
             )
-            .filter(AudioInfo.id == audio_id)
+            .filter(AudioInfo.id == audio_id, AudioInfo.is_deleted.is_(False))
             .first()
         )
         if not audio:
@@ -41,7 +46,7 @@ class AudioService:
     def get_audios(
         self, deployment_id: int | None = None, skip: int = 0, limit: int = 100
     ) -> list[AudioInfo]:
-        query = self.db.query(AudioInfo)
+        query = self.db.query(AudioInfo).filter(AudioInfo.is_deleted.is_(False))
         if deployment_id:
             query = query.filter(AudioInfo.deployment_id == deployment_id)
         return query.offset(skip).limit(limit).all()
@@ -50,7 +55,10 @@ class AudioService:
         # Check if object_key exists (unique constraint)
         if (
             self.db.query(AudioInfo)
-            .filter(AudioInfo.object_key == audio_in.object_key)
+            .filter(
+                AudioInfo.object_key == audio_in.object_key,
+                AudioInfo.is_deleted.is_(False),
+            )
             .first()
         ):
             raise HTTPException(
@@ -72,6 +80,47 @@ class AudioService:
         for field, value in update_data.items():
             setattr(audio, field, value)
 
+        self.db.add(audio)
+        self.db.commit()
+        self.db.refresh(audio)
+        return audio
+
+    def delete_audio(self, audio_id: int, user_id: int) -> AudioInfo:
+        audio = self.get_audio(audio_id)
+        audio.is_deleted = True
+        audio.deleted_at = datetime.now(timezone.utc)
+        audio.deleted_by = user_id
+        self.db.add(audio)
+        self.db.commit()
+        self.db.refresh(audio)
+        return audio
+
+    def restore_audio(self, audio_id: int) -> AudioInfo:
+        audio = self.db.query(AudioInfo).filter(AudioInfo.id == audio_id).first()
+        if not audio:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Audio not found",
+            )
+
+        # Check for object_key collision
+        if (
+            self.db.query(AudioInfo)
+            .filter(
+                AudioInfo.object_key == audio.object_key,
+                AudioInfo.is_deleted.is_(False),
+                AudioInfo.id != audio_id,
+            )
+            .first()
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Active audio with this object_key already exists. Cannot restore.",
+            )
+
+        audio.is_deleted = False
+        audio.deleted_at = None
+        audio.deleted_by = None
         self.db.add(audio)
         self.db.commit()
         self.db.refresh(audio)

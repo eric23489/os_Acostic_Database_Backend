@@ -6,7 +6,9 @@ from sqlalchemy import (
     Text,
     DateTime,
     ForeignKey,
-    UniqueConstraint,
+    Boolean,
+    Index,
+    text,
 )
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
@@ -19,8 +21,15 @@ class PointInfo(Base):
     __tablename__ = "point_info"
 
     id = Column(Integer, primary_key=True, index=True)
-    project_id = Column(Integer, ForeignKey("project_info.id"), nullable=False)
-    project = relationship("ProjectInfo")
+    project_id = Column(
+        Integer, ForeignKey("project_info.id"), nullable=False, index=True
+    )
+    project = relationship("ProjectInfo", back_populates="points")
+    deployments = relationship(
+        "DeploymentInfo",
+        back_populates="point",
+        primaryjoin="and_(PointInfo.id==DeploymentInfo.point_id, DeploymentInfo.is_deleted==False)",
+    )
     name = Column(String(50), nullable=False)
     gps_lat_plan = Column(Float)
     gps_lon_plan = Column(Float)
@@ -36,7 +45,18 @@ class PointInfo(Base):
     updated_at = Column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+    is_deleted = Column(
+        Boolean, default=False, nullable=False, server_default=text("false")
+    )
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
+    deleted_by = Column(Integer, nullable=True)
 
     __table_args__ = (
-        UniqueConstraint("project_id", "name", name="uq_point_project_name"),
+        Index(
+            "uq_point_project_name_active",
+            "project_id",
+            "name",
+            unique=True,
+            postgresql_where=(is_deleted.is_(False)),
+        ),
     )

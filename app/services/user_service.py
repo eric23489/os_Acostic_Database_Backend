@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -14,7 +15,9 @@ class UserService:
 
     def create_user(self, user: UserCreate) -> UserInfo:
         existing_user = (
-            self.db.query(UserInfo).filter((UserInfo.email == user.email)).first()
+            self.db.query(UserInfo)
+            .filter(UserInfo.email == user.email, UserInfo.is_deleted.is_(False))
+            .first()
         )
         if existing_user:
             raise HTTPException(
@@ -39,7 +42,11 @@ class UserService:
         return db_user
 
     def authenticate_user(self, email: str, password: str) -> UserInfo | None:
-        user = self.db.query(UserInfo).filter(UserInfo.email == email).first()
+        user = (
+            self.db.query(UserInfo)
+            .filter(UserInfo.email == email, UserInfo.is_deleted.is_(False))
+            .first()
+        )
         if not user:
             return None
         if not verify_password(password, user.password_hash):
@@ -49,10 +56,20 @@ class UserService:
         return user
 
     def get_users(self, skip: int = 0, limit: int = 100) -> list[UserInfo]:
-        return self.db.query(UserInfo).offset(skip).limit(limit).all()
+        return (
+            self.db.query(UserInfo)
+            .filter(UserInfo.is_deleted.is_(False))
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
 
     def update_user(self, user_id: int, user_in: UserUpdate) -> UserInfo:
-        user = self.db.query(UserInfo).filter(UserInfo.id == user_id).first()
+        user = (
+            self.db.query(UserInfo)
+            .filter(UserInfo.id == user_id, UserInfo.is_deleted.is_(False))
+            .first()
+        )
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -68,6 +85,57 @@ class UserService:
         for field, value in update_data.items():
             setattr(user, field, value)
 
+        self.db.add(user)
+        self.db.commit()
+        self.db.refresh(user)
+        return user
+
+    def delete_user(self, user_id: int, deleted_by_id: int) -> UserInfo:
+        user = (
+            self.db.query(UserInfo)
+            .filter(UserInfo.id == user_id, UserInfo.is_deleted.is_(False))
+            .first()
+        )
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found",
+            )
+
+        user.is_deleted = True
+        user.deleted_at = datetime.now(timezone.utc)
+        user.deleted_by = deleted_by_id
+        self.db.add(user)
+        self.db.commit()
+        self.db.refresh(user)
+        return user
+
+    def restore_user(self, user_id: int) -> UserInfo:
+        user = self.db.query(UserInfo).filter(UserInfo.id == user_id).first()
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found",
+            )
+
+        # Check for email collision
+        if (
+            self.db.query(UserInfo)
+            .filter(
+                UserInfo.email == user.email,
+                UserInfo.is_deleted.is_(False),
+                UserInfo.id != user_id,
+            )
+            .first()
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Active user with this email already exists. Cannot restore.",
+            )
+
+        user.is_deleted = False
+        user.deleted_at = None
+        user.deleted_by = None
         self.db.add(user)
         self.db.commit()
         self.db.refresh(user)

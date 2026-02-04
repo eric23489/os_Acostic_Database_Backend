@@ -1,0 +1,39 @@
+[tool.ruff]
+# 排除 ruff 不應檢查的資料夾
+# 注意：.venv, .git, build, dist 等資料夾 Ruff 會自動排除
+exclude = [
+    "migrations/",
+    "__pycache__/",
+    ".eggs/",
+    ".hg/",
+    ".mypy_cache/",
+    ".tox/",
+    "_build/",
+    "buck-out/",
+    "alembic/"
+]
+
+# 告訴 Ruff 你的程式碼是為 Python 3.12 編寫的 (相容 3.14)
+target-version = "py312"
+
+line-length = 88
+
+# --- Ruff Linter (檢查器) 的設定 ---
+[tool.ruff.lint]
+# 啟用核心規則：
+# E/W: pycodestyle (風格)
+# F: Pyflakes (邏輯錯誤，如未使用的 import)
+# I: isort (import 排序)
+# UP: pyupgrade (升級到現代語法)
+# B: flake8-bugbear (常見 Bug)
+# N: pep8-naming (pep8 命名風格)
+select = ["E", "F", "W", "I", "UP", "B", "N"]
+
+# 忽略特定規則
+ignore = []
+
+# --- Ruff Formatter (格式化器) 的設定 ---
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+docstring-code-format = true

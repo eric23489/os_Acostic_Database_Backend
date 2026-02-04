@@ -1,11 +1,12 @@
 from typing import List, Optional
-from fastapi import APIRouter, Depends
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_user
 from app.db.session import get_db
 from app.core.minio import get_s3_client
+from app.models.audio import AudioInfo
+from app.models.user import UserRole
 from app.utils.path_utils import parse_filename_and_generate_key
 from app.schemas.audio import (
     AudioCreate,
@@ -72,6 +73,38 @@ def update_audio(
     current_user=Depends(get_current_user),
 ):
     return AudioService(db).update_audio(audio_id, audio)
+
+
+@router.delete("/{audio_id}", response_model=AudioResponse)
+def delete_audio(
+    audio_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    return AudioService(db).delete_audio(audio_id, current_user.id)
+
+
+@router.post("/{audio_id}/restore", response_model=AudioResponse)
+def restore_audio(
+    audio_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    audio = db.query(AudioInfo).filter(AudioInfo.id == audio_id).first()
+    if not audio:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Audio not found",
+        )
+    if (
+        current_user.role != UserRole.ADMIN.value
+        and current_user.id != audio.deleted_by
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the deleter or admin can restore this resource",
+        )
+    return AudioService(db).restore_audio(audio_id)
 
 
 @router.post("/upload/presigned-url", response_model=PresignedUrlResponse)

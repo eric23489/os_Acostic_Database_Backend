@@ -1,7 +1,9 @@
+from datetime import datetime, timedelta, timezone
 from fastapi import HTTPException, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
+from app.models.audio import AudioInfo
 from app.models.deployment import DeploymentInfo
 from app.models.point import PointInfo
 from app.schemas.deployment import DeploymentCreate, DeploymentUpdate
@@ -14,7 +16,9 @@ class DeploymentService:
     def get_deployment(self, deployment_id: int) -> DeploymentInfo:
         deployment = (
             self.db.query(DeploymentInfo)
-            .filter(DeploymentInfo.id == deployment_id)
+            .filter(
+                DeploymentInfo.id == deployment_id, DeploymentInfo.is_deleted.is_(False)
+            )
             .first()
         )
         if not deployment:
@@ -31,7 +35,9 @@ class DeploymentService:
                 joinedload(DeploymentInfo.point).joinedload(PointInfo.project),
                 joinedload(DeploymentInfo.recorder),
             )
-            .filter(DeploymentInfo.id == deployment_id)
+            .filter(
+                DeploymentInfo.id == deployment_id, DeploymentInfo.is_deleted.is_(False)
+            )
             .first()
         )
         if not deployment:
@@ -46,7 +52,9 @@ class DeploymentService:
     ) -> list[DeploymentInfo]:
         return (
             self.db.query(DeploymentInfo)
-            .filter(DeploymentInfo.point_id == point_id)
+            .filter(
+                DeploymentInfo.point_id == point_id, DeploymentInfo.is_deleted.is_(False)
+            )
             .offset(skip)
             .limit(limit)
             .all()
@@ -56,7 +64,10 @@ class DeploymentService:
         # Auto-calculate Phase: Max phase for this point + 1
         max_phase = (
             self.db.query(func.max(DeploymentInfo.phase))
-            .filter(DeploymentInfo.point_id == deployment_in.point_id)
+            .filter(
+                DeploymentInfo.point_id == deployment_in.point_id,
+                DeploymentInfo.is_deleted.is_(False),
+            )
             .scalar()
         )
         new_phase = (max_phase or 0) + 1
@@ -79,6 +90,90 @@ class DeploymentService:
         for field, value in update_data.items():
             setattr(deployment, field, value)
 
+        self.db.add(deployment)
+        self.db.commit()
+        self.db.refresh(deployment)
+        return deployment
+
+    def delete_deployment(self, deployment_id: int, user_id: int) -> DeploymentInfo:
+        deployment = self.get_deployment(deployment_id)
+
+        now = datetime.now(timezone.utc)
+
+        # 1. Mark Deployment as deleted
+        deployment.is_deleted = True
+        deployment.deleted_at = now
+        deployment.deleted_by = user_id
+
+        # 2. Cascade Soft Delete: Mark related Audios
+        self.db.query(AudioInfo).filter(
+            AudioInfo.deployment_id == deployment_id
+        ).update(
+            {
+                AudioInfo.is_deleted: True,
+                AudioInfo.deleted_at: now,
+                AudioInfo.deleted_by: user_id,
+            },
+            synchronize_session=False,
+        )
+
+        self.db.add(deployment)
+        self.db.commit()
+        self.db.refresh(deployment)
+        return deployment
+
+    def restore_deployment(self, deployment_id: int) -> DeploymentInfo:
+        deployment = (
+            self.db.query(DeploymentInfo)
+            .filter(DeploymentInfo.id == deployment_id)
+            .first()
+        )
+        if not deployment:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Deployment not found",
+            )
+
+        # Check for unique constraint collision before restore
+        # Constraint: point_id + phase
+        if (
+            self.db.query(DeploymentInfo)
+            .filter(
+                DeploymentInfo.point_id == deployment.point_id,
+                DeploymentInfo.phase == deployment.phase,
+                DeploymentInfo.is_deleted.is_(False),
+                DeploymentInfo.id != deployment_id,
+            )
+            .first()
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Active deployment with this phase already exists for the point. Cannot restore.",
+            )
+
+        # Cascade Restore Logic
+        # Only restore child records deleted at the same time as parent
+        update_values = {
+            "is_deleted": False,
+            "deleted_at": None,
+            "deleted_by": None,
+        }
+
+        # Time threshold: only restore records deleted within 5 seconds of parent
+        deleted_at = deployment.deleted_at
+        time_min = deleted_at - timedelta(seconds=5)
+        time_max = deleted_at + timedelta(seconds=5)
+
+        # 1. Cascade to Audios (Children)
+        self.db.query(AudioInfo).filter(
+            AudioInfo.deployment_id == deployment_id,
+            AudioInfo.deleted_at >= time_min,
+            AudioInfo.deleted_at <= time_max,
+        ).update(update_values, synchronize_session=False)
+
+        deployment.is_deleted = False
+        deployment.deleted_at = None
+        deployment.deleted_by = None
         self.db.add(deployment)
         self.db.commit()
         self.db.refresh(deployment)

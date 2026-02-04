@@ -6,7 +6,9 @@ from sqlalchemy import (
     Text,
     DateTime,
     SmallInteger,
-    UniqueConstraint,
+    Boolean,
+    Index,
+    text,
 )
 from sqlalchemy.sql import func
 from app.db.base import Base
@@ -31,7 +33,19 @@ class RecorderInfo(Base):
     updated_at = Column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+    is_deleted = Column(
+        Boolean, default=False, nullable=False, server_default=text("false")
+    )
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
+    deleted_by = Column(Integer, nullable=True)
 
     __table_args__ = (
-        UniqueConstraint("brand", "model", "sn", name="uq_recorder_brand_model_sn"),
+        Index(
+            "uq_recorder_brand_model_sn_active",
+            "brand",
+            "model",
+            "sn",
+            unique=True,
+            postgresql_where=(is_deleted.is_(False)),
+        ),
     )
