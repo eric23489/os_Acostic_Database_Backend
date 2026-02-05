@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session, selectinload
@@ -91,6 +91,30 @@ class ProjectService:
                 detail="Project with this Chinese name (name_zh) already exists",
             )
 
+        # Check if name is reserved by a soft-deleted project
+        if (
+            self.db.query(ProjectInfo)
+            .filter(ProjectInfo.name == project_in.name)
+            .filter(ProjectInfo.is_deleted.is_(True))
+            .first()
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Name reserved by deleted project. Hard delete to release.",
+            )
+
+        # Check if name_zh is reserved by a soft-deleted project
+        if project_in.name_zh and (
+            self.db.query(ProjectInfo)
+            .filter(ProjectInfo.name_zh == project_in.name_zh)
+            .filter(ProjectInfo.is_deleted.is_(True))
+            .first()
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="name_zh reserved by deleted project. Hard delete to release.",
+            )
+
         db_obj = ProjectInfo(**project_in.model_dump())
         self.db.add(db_obj)
         self.db.commit()
@@ -138,7 +162,7 @@ class ProjectService:
     def delete_project(self, project_id: int, user_id: int) -> ProjectInfo:
         project = self.get_project(project_id)
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         update_values = {
             "is_deleted": True,
             "deleted_at": now,
@@ -288,3 +312,85 @@ class ProjectService:
         self.db.commit()
         self.db.refresh(project)
         return project
+
+    def hard_delete_project(self, project_id: int) -> dict:
+        """
+        永久刪除 Project 及所有相關資料。
+
+        包含：
+        - 刪除 MinIO Bucket 和所有物件
+        - 刪除資料庫中的所有相關記錄 (Audios, Deployments, Points, Project)
+        - 釋放名稱，可重新使用
+        """
+        # 查詢 Project (包含已軟刪除)
+        project = (
+            self.db.query(ProjectInfo).filter(ProjectInfo.id == project_id).first()
+        )
+        if not project:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Project not found",
+            )
+
+        project_name = project.name
+
+        # 取得所有相關 Audio 的 object_key
+        point_ids_sub = self.db.query(PointInfo.id).filter(
+            PointInfo.project_id == project_id
+        )
+        deployment_ids_sub = self.db.query(DeploymentInfo.id).filter(
+            DeploymentInfo.point_id.in_(point_ids_sub)
+        )
+        audios = (
+            self.db.query(AudioInfo)
+            .filter(AudioInfo.deployment_id.in_(deployment_ids_sub))
+            .all()
+        )
+
+        # 刪除 MinIO 物件
+        s3_client = get_s3_client()
+        bucket_name = project_name
+
+        if audios:
+            objects_to_delete = [{"Key": a.object_key} for a in audios]
+            # S3 每次最多刪除 1000 個物件
+            for i in range(0, len(objects_to_delete), 1000):
+                batch = objects_to_delete[i : i + 1000]
+                try:
+                    s3_client.delete_objects(
+                        Bucket=bucket_name, Delete={"Objects": batch}
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to delete objects in {bucket_name}: {e}")
+
+        # 刪除 MinIO Bucket
+        try:
+            s3_client.delete_bucket(Bucket=bucket_name)
+        except Exception as e:
+            logger.warning(f"Failed to delete bucket {bucket_name}: {e}")
+
+        # 刪除 DB 記錄 (順序重要：先子後父)
+        deleted_audios = (
+            self.db.query(AudioInfo)
+            .filter(AudioInfo.deployment_id.in_(deployment_ids_sub))
+            .delete(synchronize_session=False)
+        )
+
+        self.db.query(DeploymentInfo).filter(
+            DeploymentInfo.point_id.in_(point_ids_sub)
+        ).delete(synchronize_session=False)
+
+        self.db.query(PointInfo).filter(PointInfo.project_id == project_id).delete(
+            synchronize_session=False
+        )
+
+        self.db.query(ProjectInfo).filter(ProjectInfo.id == project_id).delete(
+            synchronize_session=False
+        )
+
+        self.db.commit()
+
+        return {
+            "message": f"Project '{project_name}' permanently deleted",
+            "deleted_audios": deleted_audios,
+        }

@@ -1,11 +1,17 @@
-from datetime import datetime, timezone
+import logging
+from datetime import UTC, datetime
+
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 
+from app.core.minio import get_s3_client
 from app.models.audio import AudioInfo
 from app.models.deployment import DeploymentInfo
 from app.models.point import PointInfo
+from app.models.project import ProjectInfo
 from app.schemas.audio import AudioCreate, AudioUpdate
+
+logger = logging.getLogger(__name__)
 
 
 class AudioService:
@@ -66,6 +72,20 @@ class AudioService:
                 detail="Audio with this object_key already exists",
             )
 
+        # Check if object_key is reserved by a soft-deleted audio
+        if (
+            self.db.query(AudioInfo)
+            .filter(
+                AudioInfo.object_key == audio_in.object_key,
+                AudioInfo.is_deleted.is_(True),
+            )
+            .first()
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="object_key reserved by deleted audio. Hard delete to release.",
+            )
+
         audio_data = audio_in.model_dump()
         db_obj = AudioInfo(**audio_data)
         self.db.add(db_obj)
@@ -88,7 +108,7 @@ class AudioService:
     def delete_audio(self, audio_id: int, user_id: int) -> AudioInfo:
         audio = self.get_audio(audio_id)
         audio.is_deleted = True
-        audio.deleted_at = datetime.now(timezone.utc)
+        audio.deleted_at = datetime.now(UTC)
         audio.deleted_by = user_id
         self.db.add(audio)
         self.db.commit()
@@ -125,3 +145,66 @@ class AudioService:
         self.db.commit()
         self.db.refresh(audio)
         return audio
+
+    def hard_delete_audio(self, audio_id: int) -> dict:
+        """
+        永久刪除單一 Audio。
+
+        包含：
+        - 刪除 MinIO 物件
+        - 刪除資料庫記錄
+        - 釋放 object_key，可重新使用
+        """
+        # 查詢 Audio (包含已軟刪除)
+        audio = self.db.query(AudioInfo).filter(AudioInfo.id == audio_id).first()
+        if not audio:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Audio not found",
+            )
+
+        # 取得 bucket 名稱
+        deployment = (
+            self.db.query(DeploymentInfo)
+            .filter(DeploymentInfo.id == audio.deployment_id)
+            .first()
+        )
+        if not deployment:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Parent deployment not found",
+            )
+
+        point = (
+            self.db.query(PointInfo).filter(PointInfo.id == deployment.point_id).first()
+        )
+        if not point:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Parent point not found",
+            )
+
+        project = (
+            self.db.query(ProjectInfo)
+            .filter(ProjectInfo.id == point.project_id)
+            .first()
+        )
+        if not project:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Parent project not found",
+            )
+        bucket_name = project.name
+
+        # 刪除 MinIO 物件
+        s3_client = get_s3_client()
+        try:
+            s3_client.delete_object(Bucket=bucket_name, Key=audio.object_key)
+        except Exception as e:
+            logger.warning(f"Failed to delete object {audio.object_key}: {e}")
+
+        # 刪除 DB 記錄
+        self.db.query(AudioInfo).filter(AudioInfo.id == audio_id).delete()
+        self.db.commit()
+
+        return {"message": "Audio permanently deleted"}
