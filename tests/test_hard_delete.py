@@ -345,43 +345,221 @@ class TestAudioServiceHardDelete:
 # =============================================================================
 
 
+# =============================================================================
+# 錯誤處理測試
+# =============================================================================
+
+
+class TestHardDeleteErrorHandling:
+    """測試 Hard Delete 的錯誤處理機制。"""
+
+    def test_hard_delete_continues_when_minio_fails(self):
+        """
+        測試 MinIO 刪除失敗時，DB 刪除仍會執行。
+
+        預期行為：
+        - MinIO 失敗只記錄 warning，不中斷流程
+        - DB 記錄仍被刪除
+        - 回傳成功訊息
+        """
+        with patch("app.services.project_service.get_s3_client") as mock_get_s3:
+            mock_s3 = MagicMock()
+            mock_get_s3.return_value = mock_s3
+
+            # MinIO 刪除物件時拋出異常
+            mock_s3.delete_objects.side_effect = Exception("MinIO connection failed")
+            mock_s3.delete_bucket.side_effect = Exception("MinIO connection failed")
+
+            mock_db = MagicMock()
+
+            # Mock Project
+            mock_project = MagicMock()
+            mock_project.id = 1
+            mock_project.name = "test-project"
+
+            # Mock 空的 Audio 列表
+            mock_db.query.return_value.filter.return_value.first.return_value = mock_project
+            mock_db.query.return_value.filter.return_value.all.return_value = []
+            mock_db.query.return_value.filter.return_value.delete.return_value = 0
+
+            from app.services.project_service import ProjectService
+
+            service = ProjectService(mock_db)
+            result = service.hard_delete_project(1)
+
+            # 驗證 DB commit 仍被呼叫
+            mock_db.commit.assert_called_once()
+            assert "permanently deleted" in result["message"]
+
+    def test_hard_delete_empty_project(self):
+        """
+        測試刪除沒有任何 Audio 的空 Project。
+
+        預期行為：
+        - 不呼叫 delete_objects (沒有物件)
+        - 呼叫 delete_bucket
+        - DB 記錄被刪除
+        """
+        with patch("app.services.project_service.get_s3_client") as mock_get_s3:
+            mock_s3 = MagicMock()
+            mock_get_s3.return_value = mock_s3
+
+            mock_db = MagicMock()
+
+            # Mock Project
+            mock_project = MagicMock()
+            mock_project.id = 1
+            mock_project.name = "empty-project"
+
+            # Mock 空的 Audio 列表
+            mock_db.query.return_value.filter.return_value.first.return_value = mock_project
+            mock_db.query.return_value.filter.return_value.all.return_value = []  # 空
+            mock_db.query.return_value.filter.return_value.delete.return_value = 0
+
+            from app.services.project_service import ProjectService
+
+            service = ProjectService(mock_db)
+            result = service.hard_delete_project(1)
+
+            # 驗證沒有呼叫 delete_objects (因為沒有物件)
+            mock_s3.delete_objects.assert_not_called()
+            # 驗證有呼叫 delete_bucket
+            mock_s3.delete_bucket.assert_called_once_with(Bucket="empty-project")
+
+
+class TestHardDeleteBatchProcessing:
+    """測試批量刪除處理。"""
+
+    def test_hard_delete_batch_over_1000_objects(self):
+        """
+        測試刪除超過 1000 個物件時的分批處理。
+
+        預期行為：
+        - delete_objects 被呼叫多次
+        - 每批最多 1000 個物件
+        """
+        with patch("app.services.project_service.get_s3_client") as mock_get_s3:
+            mock_s3 = MagicMock()
+            mock_get_s3.return_value = mock_s3
+
+            mock_db = MagicMock()
+
+            # Mock Project
+            mock_project = MagicMock()
+            mock_project.id = 1
+            mock_project.name = "large-project"
+
+            # Mock 1500 個 Audio
+            mock_audios = []
+            for i in range(1500):
+                audio = MagicMock()
+                audio.object_key = f"point/2024/01/audio_{i}.wav"
+                mock_audios.append(audio)
+
+            mock_db.query.return_value.filter.return_value.first.return_value = mock_project
+            mock_db.query.return_value.filter.return_value.all.return_value = mock_audios
+            mock_db.query.return_value.filter.return_value.delete.return_value = 1500
+
+            from app.services.project_service import ProjectService
+
+            service = ProjectService(mock_db)
+            result = service.hard_delete_project(1)
+
+            # 驗證 delete_objects 被呼叫 2 次 (1000 + 500)
+            assert mock_s3.delete_objects.call_count == 2
+
+            # 驗證第一批有 1000 個物件
+            first_call = mock_s3.delete_objects.call_args_list[0]
+            assert len(first_call[1]["Delete"]["Objects"]) == 1000
+
+            # 驗證第二批有 500 個物件
+            second_call = mock_s3.delete_objects.call_args_list[1]
+            assert len(second_call[1]["Delete"]["Objects"]) == 500
+
+
+# =============================================================================
+# 名稱釋放測試
+# =============================================================================
+
+
 class TestNameRelease:
     """測試 Hard Delete 後名稱可重新使用。"""
 
-    def test_create_after_hard_delete_succeeds(self):
+    def test_soft_deleted_name_is_reserved(self):
         """
-        測試永久刪除後可以重新使用相同名稱建立資源。
+        測試軟刪除的名稱被保留，無法建立同名資源。
 
-        情境：
-        1. 建立 Project A
-        2. 軟刪除 Project A
-        3. 嘗試建立同名 Project → 失敗（名稱保留）
-        4. 永久刪除 Project A
-        5. 建立同名 Project → 成功
+        預期行為：
+        - 建立同名資源時回傳 400
+        - 錯誤訊息提示需要 Hard Delete
         """
-        # 這個測試需要更複雜的 mock 設置，
-        # 主要驗證 create 方法在沒有軟刪除記錄時可以成功
         mock_db = MagicMock()
 
-        # 模擬沒有同名的活躍或軟刪除記錄
-        mock_db.query.return_value.filter.return_value.filter.return_value.first.return_value = (
-            None
-        )
+        # 模擬沒有活躍的同名記錄
+        # 但有軟刪除的同名記錄
+        call_count = [0]
 
-        # 模擬成功建立
+        def filter_side_effect(*args, **kwargs):
+            mock_result = MagicMock()
+            call_count[0] += 1
+            if call_count[0] <= 2:
+                # 前兩次查詢 (活躍記錄) 回傳 None
+                mock_result.first.return_value = None
+            else:
+                # 第三次查詢 (軟刪除記錄) 回傳有記錄
+                mock_deleted = MagicMock()
+                mock_deleted.name = "reserved-name"
+                mock_result.first.return_value = mock_deleted
+            return mock_result
+
+        mock_db.query.return_value.filter.return_value.filter.side_effect = filter_side_effect
+
         from app.schemas.project import ProjectCreate
 
-        project_in = ProjectCreate(name="released-name", name_zh="釋放的名稱")
+        project_in = ProjectCreate(name="reserved-name", name_zh="保留的名稱")
 
         with patch("app.services.project_service.get_s3_client"):
             from app.services.project_service import ProjectService
 
             service = ProjectService(mock_db)
 
-            # 如果沒有拋出異常，表示名稱可用
-            # 實際建立邏輯會在 mock_db.add 中
+            with pytest.raises(HTTPException) as exc_info:
+                service.create_project(project_in)
+
+            assert exc_info.value.status_code == 400
+            assert "Hard delete" in exc_info.value.detail
+
+    def test_name_available_after_hard_delete(self):
+        """
+        測試 Hard Delete 後名稱可重新使用。
+
+        預期行為：
+        - 所有唯一性檢查都回傳 None
+        - 建立成功
+        """
+        mock_db = MagicMock()
+
+        # 模擬所有查詢都回傳 None (名稱可用)
+        mock_db.query.return_value.filter.return_value.filter.return_value.first.return_value = None
+        mock_db.query.return_value.filter.return_value.first.return_value = None
+
+        from app.schemas.project import ProjectCreate
+
+        project_in = ProjectCreate(name="available-name", name_zh="可用的名稱")
+
+        with patch("app.services.project_service.get_s3_client") as mock_s3:
+            mock_s3.return_value = MagicMock()
+
+            from app.services.project_service import ProjectService
+
+            service = ProjectService(mock_db)
+
+            # 不應該拋出異常
+            # (實際建立會在 mock_db.add 中，這裡只測試檢查邏輯)
             try:
-                # 這裡只測試名稱檢查邏輯，不測試完整建立流程
-                pass
+                service.create_project(project_in)
+                # 驗證 db.add 被呼叫
+                mock_db.add.assert_called_once()
             except HTTPException as e:
-                pytest.fail(f"Should not raise exception: {e.detail}")
+                if "reserved" in str(e.detail).lower():
+                    pytest.fail(f"Name should be available: {e.detail}")

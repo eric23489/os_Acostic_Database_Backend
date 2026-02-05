@@ -252,25 +252,78 @@ def create_resource(self, resource_in: ResourceCreate) -> ResourceInfo:
 
 ## 5. 測試範本
 
+### 測試案例清單
+
+| 類型 | 測試名稱 | 驗證目標 |
+|------|---------|----------|
+| Permission | test_hard_delete_requires_admin | 非 Admin 回傳 403 |
+| Happy | test_hard_delete_success | 成功刪除回傳 200 |
+| Error | test_hard_delete_not_found | 資源不存在回傳 404 |
+| Error | test_hard_delete_continues_when_minio_fails | MinIO 失敗不中斷 DB |
+| Edge | test_hard_delete_empty_project | 空 Project 正常刪除 |
+| Edge | test_hard_delete_batch_over_1000 | 分批刪除 >1000 物件 |
+| Edge | test_soft_deleted_name_is_reserved | 軟刪除名稱保留 |
+| Edge | test_name_available_after_hard_delete | Hard Delete 後名稱可用 |
+
+### API 層測試
 ```python
-class TestHardDelete:
-    def test_hard_delete_requires_admin(self, client, user_token):
+class TestHardDeleteAPI:
+    def test_hard_delete_requires_admin(self, client, mock_normal_user):
         """一般使用者無法執行 hard delete"""
-        response = client.delete(
-            "/api/v1/resources/1/permanent",
-            headers={"Authorization": f"Bearer {user_token}"},
-        )
+        app.dependency_overrides[get_current_user] = lambda: mock_normal_user
+        response = client.delete("/api/v1/resources/1/permanent")
         assert response.status_code == 403
 
-    def test_hard_delete_releases_name(self, client, admin_token, db):
-        """Hard delete 後名稱可重新使用"""
-        # 建立 → 軟刪除 → Hard delete → 重新建立
-        # ...
+    def test_hard_delete_success(self, client):
+        """Admin 成功刪除"""
+        with patch("...ResourceService") as MockService:
+            MockService.return_value.hard_delete_resource.return_value = {
+                "message": "permanently deleted"
+            }
+            response = client.delete("/api/v1/resources/1/permanent")
+            assert response.status_code == 200
+```
 
-    def test_hard_delete_removes_minio_objects(self, client, admin_token, mock_s3):
-        """Hard delete 應刪除 MinIO 物件"""
+### Service 層測試
+```python
+class TestHardDeleteService:
+    def test_hard_delete_removes_minio_objects(self):
+        """驗證 MinIO 物件被刪除"""
+        with patch("...get_s3_client") as mock_get_s3:
+            mock_s3 = MagicMock()
+            mock_get_s3.return_value = mock_s3
+            # ... setup mock_db
+            service.hard_delete_resource(1)
+            mock_s3.delete_object.assert_called_once()
+
+    def test_hard_delete_continues_when_minio_fails(self):
+        """MinIO 失敗時 DB 仍執行"""
+        mock_s3.delete_objects.side_effect = Exception("MinIO failed")
+        result = service.hard_delete_project(1)
+        mock_db.commit.assert_called_once()  # DB 仍 commit
+
+    def test_hard_delete_batch_over_1000(self):
+        """分批刪除超過 1000 物件"""
+        mock_audios = [MagicMock() for _ in range(1500)]
         # ...
-        mock_s3.delete_object.assert_called_once()
+        assert mock_s3.delete_objects.call_count == 2  # 1000 + 500
+```
+
+### 名稱釋放測試
+```python
+class TestNameRelease:
+    def test_soft_deleted_name_is_reserved(self):
+        """軟刪除名稱被保留"""
+        # 模擬有軟刪除記錄
+        with pytest.raises(HTTPException) as exc_info:
+            service.create_resource(resource_in)
+        assert "Hard delete" in exc_info.value.detail
+
+    def test_name_available_after_hard_delete(self):
+        """Hard Delete 後名稱可用"""
+        # 模擬所有查詢回傳 None
+        service.create_resource(resource_in)
+        mock_db.add.assert_called_once()
 ```
 
 ---
@@ -320,7 +373,30 @@ class TestHardDelete:
 - 程式碼結構和檔案組織
 - 錯誤處理機制
 - 範例程式碼
-- 測試策略
+```
+
+### 測試工程師
+```
+你是測試工程師。針對「{主題}」，設計完整的測試策略：
+
+**測試層級:**
+1. 單元測試: 哪些函式需要獨立測試？
+2. 整合測試: 哪些元件互動需要驗證？
+3. API 測試: 哪些端點和情境需要覆蓋？
+
+**測試案例設計:**
+- 正常路徑 (Happy Path)
+- 錯誤處理 (Error Cases)
+- 邊界條件 (Edge Cases)
+- 權限檢查 (Permission)
+
+**Mock 策略:**
+- 哪些依賴需要 Mock？(DB, MinIO, 外部服務)
+- Mock 的粒度？(函式層級 vs 類別層級)
+
+**驗證清單:**
+提供測試案例清單，格式：
+| 測試名稱 | 類型 | 驗證目標 |
 ```
 
 ---
