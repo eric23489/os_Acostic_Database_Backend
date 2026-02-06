@@ -4,6 +4,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import exists
 
+from app.models.deployment import DeploymentInfo
 from app.models.recorder import RecorderInfo
 from app.schemas.recorder import RecorderCreate, RecorderUpdate
 
@@ -44,11 +45,31 @@ class RecorderService:
             .all()
         )
 
+    def check_soft_deleted_recorder_exists(self, brand: str, model: str, sn: str) -> bool:
+        """檢查是否有軟刪除的 Recorder 佔用此識別碼。"""
+        return self.db.query(
+            exists().where(
+                RecorderInfo.brand == brand,
+                RecorderInfo.model == model,
+                RecorderInfo.sn == sn,
+                RecorderInfo.is_deleted.is_(True),
+            )
+        ).scalar()
+
     def create_recorder(self, recorder: RecorderCreate) -> RecorderInfo:
         if self.check_recorder_exists(recorder.brand, recorder.model, recorder.sn):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Recorder with brand '{recorder.brand}', model '{recorder.model}', and SN '{recorder.sn}' already exists.",
+            )
+
+        # 檢查軟刪除名稱保留
+        if self.check_soft_deleted_recorder_exists(
+            recorder.brand, recorder.model, recorder.sn
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Identifier reserved by deleted recorder. Hard delete to release.",
             )
 
         db_recorder = RecorderInfo(
@@ -146,3 +167,43 @@ class RecorderService:
         self.db.commit()
         self.db.refresh(recorder)
         return recorder
+
+    def hard_delete_recorder(self, recorder_id: int) -> dict:
+        """
+        永久刪除 Recorder。
+
+        包含：
+        - 檢查是否有 Deployment 引用此 Recorder
+        - 刪除資料庫記錄
+        - 釋放 brand/model/sn 識別碼，可重新使用
+        """
+        # 查詢 Recorder (包含已軟刪除)
+        recorder = (
+            self.db.query(RecorderInfo).filter(RecorderInfo.id == recorder_id).first()
+        )
+        if not recorder:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Recorder not found",
+            )
+
+        # 檢查是否有 Deployment 引用此 Recorder
+        deployment_count = (
+            self.db.query(DeploymentInfo)
+            .filter(DeploymentInfo.recorder_id == recorder_id)
+            .count()
+        )
+        if deployment_count > 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot delete recorder: {deployment_count} deployment(s) reference this recorder. Delete deployments first.",
+            )
+
+        # 記錄識別資訊
+        recorder_identifier = f"{recorder.brand}/{recorder.model}/{recorder.sn}"
+
+        # 刪除 DB 記錄
+        self.db.query(RecorderInfo).filter(RecorderInfo.id == recorder_id).delete()
+        self.db.commit()
+
+        return {"message": f"Recorder '{recorder_identifier}' permanently deleted"}

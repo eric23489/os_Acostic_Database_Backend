@@ -217,6 +217,73 @@ class TestAudioHardDelete:
 
 
 # =============================================================================
+# Recorder Hard Delete 測試
+# =============================================================================
+
+
+class TestRecorderHardDelete:
+    """測試 Recorder 永久刪除功能。"""
+
+    def test_hard_delete_requires_admin(self, client, mock_normal_user):
+        """測試一般使用者無法執行永久刪除。"""
+        from app.core.auth import get_current_user
+        from app.main import app
+
+        app.dependency_overrides[get_current_user] = lambda: mock_normal_user
+
+        response = client.delete(f"{settings.api_prefix}/recorders/1/permanent")
+
+        assert response.status_code == 403
+        assert "Admin" in response.json()["detail"]
+
+    def test_hard_delete_recorder_success(self, client):
+        """測試成功永久刪除 Recorder。"""
+        with patch(
+            "app.api.v1.endpoints.api_recorders.RecorderService"
+        ) as MockService:
+            mock_service = MockService.return_value
+            mock_service.hard_delete_recorder.return_value = {
+                "message": "Recorder 'SoundTrap/ST600/SN12345' permanently deleted"
+            }
+
+            response = client.delete(f"{settings.api_prefix}/recorders/1/permanent")
+
+            assert response.status_code == 200
+            assert "permanently deleted" in response.json()["message"]
+            mock_service.hard_delete_recorder.assert_called_once_with(1)
+
+    def test_hard_delete_recorder_not_found(self, client):
+        """測試刪除不存在的 Recorder。"""
+        with patch(
+            "app.api.v1.endpoints.api_recorders.RecorderService"
+        ) as MockService:
+            mock_service = MockService.return_value
+            mock_service.hard_delete_recorder.side_effect = HTTPException(
+                status_code=404, detail="Recorder not found"
+            )
+
+            response = client.delete(f"{settings.api_prefix}/recorders/1/permanent")
+
+            assert response.status_code == 404
+
+    def test_hard_delete_recorder_with_deployments_fails(self, client):
+        """測試刪除有 Deployment 引用的 Recorder 會失敗。"""
+        with patch(
+            "app.api.v1.endpoints.api_recorders.RecorderService"
+        ) as MockService:
+            mock_service = MockService.return_value
+            mock_service.hard_delete_recorder.side_effect = HTTPException(
+                status_code=400,
+                detail="Cannot delete recorder: 3 deployment(s) reference this recorder. Delete deployments first.",
+            )
+
+            response = client.delete(f"{settings.api_prefix}/recorders/1/permanent")
+
+            assert response.status_code == 400
+            assert "deployment" in response.json()["detail"].lower()
+
+
+# =============================================================================
 # Service 層 Hard Delete 測試
 # =============================================================================
 
@@ -279,6 +346,73 @@ class TestProjectServiceHardDelete:
 
         with pytest.raises(HTTPException) as exc_info:
             service.hard_delete_project(999)
+
+        assert exc_info.value.status_code == 404
+
+
+class TestRecorderServiceHardDelete:
+    """測試 RecorderService 的 hard_delete_recorder 方法。"""
+
+    def test_hard_delete_recorder_success(self):
+        """測試永久刪除沒有 Deployment 引用的 Recorder。"""
+        mock_db = MagicMock()
+
+        # Mock Recorder
+        mock_recorder = MagicMock()
+        mock_recorder.id = 1
+        mock_recorder.brand = "SoundTrap"
+        mock_recorder.model = "ST600"
+        mock_recorder.sn = "SN12345"
+
+        # Setup query chain
+        mock_db.query.return_value.filter.return_value.first.return_value = mock_recorder
+        mock_db.query.return_value.filter.return_value.count.return_value = 0  # 沒有 Deployment
+
+        from app.services.recorder_service import RecorderService
+
+        service = RecorderService(mock_db)
+        result = service.hard_delete_recorder(1)
+
+        assert "permanently deleted" in result["message"]
+        assert "SoundTrap/ST600/SN12345" in result["message"]
+        mock_db.commit.assert_called_once()
+
+    def test_hard_delete_recorder_with_deployments_raises_400(self):
+        """測試刪除有 Deployment 引用的 Recorder 時拋出 400。"""
+        mock_db = MagicMock()
+
+        # Mock Recorder
+        mock_recorder = MagicMock()
+        mock_recorder.id = 1
+        mock_recorder.brand = "SoundTrap"
+        mock_recorder.model = "ST600"
+        mock_recorder.sn = "SN12345"
+
+        # Setup query chain - 有 3 個 Deployment 引用
+        mock_db.query.return_value.filter.return_value.first.return_value = mock_recorder
+        mock_db.query.return_value.filter.return_value.count.return_value = 3
+
+        from app.services.recorder_service import RecorderService
+
+        service = RecorderService(mock_db)
+
+        with pytest.raises(HTTPException) as exc_info:
+            service.hard_delete_recorder(1)
+
+        assert exc_info.value.status_code == 400
+        assert "3 deployment(s)" in exc_info.value.detail
+
+    def test_hard_delete_recorder_not_found_raises_404(self):
+        """測試刪除不存在的 Recorder 時拋出 404。"""
+        mock_db = MagicMock()
+        mock_db.query.return_value.filter.return_value.first.return_value = None
+
+        from app.services.recorder_service import RecorderService
+
+        service = RecorderService(mock_db)
+
+        with pytest.raises(HTTPException) as exc_info:
+            service.hard_delete_recorder(999)
 
         assert exc_info.value.status_code == 404
 
@@ -563,3 +697,38 @@ class TestNameRelease:
             except HTTPException as e:
                 if "reserved" in str(e.detail).lower():
                     pytest.fail(f"Name should be available: {e.detail}")
+
+
+class TestRecorderNameRelease:
+    """測試 Recorder Hard Delete 後識別碼可重新使用。"""
+
+    def test_soft_deleted_recorder_identifier_is_reserved(self):
+        """
+        測試軟刪除的 Recorder 識別碼被保留。
+
+        預期行為：
+        - 建立同識別碼 Recorder 時回傳 400
+        - 錯誤訊息提示需要 Hard Delete
+        """
+        mock_db = MagicMock()
+
+        # 模擬沒有活躍的同識別碼記錄，但有軟刪除的
+        mock_db.query.return_value.scalar.side_effect = [False, True]
+
+        from app.schemas.recorder import RecorderCreate
+        from app.services.recorder_service import RecorderService
+
+        recorder_in = RecorderCreate(
+            brand="SoundTrap",
+            model="ST600",
+            sn="SN12345",
+            sensitivity=-176.0,
+        )
+
+        service = RecorderService(mock_db)
+
+        with pytest.raises(HTTPException) as exc_info:
+            service.create_recorder(recorder_in)
+
+        assert exc_info.value.status_code == 400
+        assert "Hard delete" in exc_info.value.detail
