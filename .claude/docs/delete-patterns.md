@@ -265,65 +265,193 @@ def create_resource(self, resource_in: ResourceCreate) -> ResourceInfo:
 | Edge | test_soft_deleted_name_is_reserved | 軟刪除名稱保留 |
 | Edge | test_name_available_after_hard_delete | Hard Delete 後名稱可用 |
 
-### API 層測試
+### Fixture 範本
 ```python
-class TestHardDeleteAPI:
-    def test_hard_delete_requires_admin(self, client, mock_normal_user):
-        """一般使用者無法執行 hard delete"""
-        app.dependency_overrides[get_current_user] = lambda: mock_normal_user
-        response = client.delete("/api/v1/resources/1/permanent")
-        assert response.status_code == 403
+from unittest.mock import MagicMock, patch
+import pytest
+from fastapi import HTTPException
+from app.core.config import settings
+from app.enums.enums import UserRole
 
-    def test_hard_delete_success(self, client):
-        """Admin 成功刪除"""
-        with patch("...ResourceService") as MockService:
-            MockService.return_value.hard_delete_resource.return_value = {
-                "message": "permanently deleted"
-            }
-            response = client.delete("/api/v1/resources/1/permanent")
-            assert response.status_code == 200
+@pytest.fixture
+def mock_normal_user():
+    """Mock 一般使用者（非 Admin）。"""
+    user = MagicMock()
+    user.id = 2
+    user.email = "user@example.com"
+    user.role = UserRole.USER.value
+    user.full_name = "Normal User"
+    user.is_active = True
+    return user
 ```
 
-### Service 層測試
+### API 層測試
 ```python
-class TestHardDeleteService:
+class TestResourceHardDelete:
+    """測試 Resource 永久刪除功能。"""
+
+    def test_hard_delete_requires_admin(self, client, mock_normal_user):
+        """測試一般使用者無法執行永久刪除。"""
+        from app.core.auth import get_current_user
+        from app.main import app
+
+        app.dependency_overrides[get_current_user] = lambda: mock_normal_user
+        response = client.delete(f"{settings.api_prefix}/resources/1/permanent")
+
+        assert response.status_code == 403
+        assert "Admin" in response.json()["detail"]
+
+    def test_hard_delete_success(self, client):
+        """測試成功永久刪除。"""
+        with patch("app.api.v1.endpoints.api_resources.ResourceService") as MockService:
+            mock_service = MockService.return_value
+            mock_service.hard_delete_resource.return_value = {
+                "message": "Resource permanently deleted",
+            }
+
+            response = client.delete(f"{settings.api_prefix}/resources/1/permanent")
+
+            assert response.status_code == 200
+            assert "permanently deleted" in response.json()["message"]
+            mock_service.hard_delete_resource.assert_called_once_with(1)
+
+    def test_hard_delete_not_found(self, client):
+        """測試刪除不存在的資源。"""
+        with patch("app.api.v1.endpoints.api_resources.ResourceService") as MockService:
+            mock_service = MockService.return_value
+            mock_service.hard_delete_resource.side_effect = HTTPException(
+                status_code=404, detail="Resource not found"
+            )
+
+            response = client.delete(f"{settings.api_prefix}/resources/1/permanent")
+            assert response.status_code == 404
+```
+
+### Service 層測試 (MinIO 整合)
+```python
+class TestResourceServiceHardDelete:
+    """測試 ResourceService 的 hard_delete 方法。"""
+
     def test_hard_delete_removes_minio_objects(self):
-        """驗證 MinIO 物件被刪除"""
-        with patch("...get_s3_client") as mock_get_s3:
+        """測試永久刪除會刪除 MinIO 物件。"""
+        with patch("app.services.resource_service.get_s3_client") as mock_get_s3:
             mock_s3 = MagicMock()
             mock_get_s3.return_value = mock_s3
-            # ... setup mock_db
-            service.hard_delete_resource(1)
-            mock_s3.delete_object.assert_called_once()
+
+            mock_db = MagicMock()
+            mock_resource = MagicMock()
+            mock_resource.id = 1
+            mock_resource.name = "test-resource"
+
+            mock_db.query.return_value.filter.return_value.first.return_value = mock_resource
+            mock_db.query.return_value.filter.return_value.all.return_value = []
+            mock_db.query.return_value.filter.return_value.delete.return_value = 0
+
+            from app.services.resource_service import ResourceService
+            service = ResourceService(mock_db)
+            result = service.hard_delete_resource(1)
+
+            mock_s3.delete_bucket.assert_called_once()
+            mock_db.commit.assert_called_once()
 
     def test_hard_delete_continues_when_minio_fails(self):
-        """MinIO 失敗時 DB 仍執行"""
-        mock_s3.delete_objects.side_effect = Exception("MinIO failed")
-        result = service.hard_delete_project(1)
-        mock_db.commit.assert_called_once()  # DB 仍 commit
+        """測試 MinIO 失敗時 DB 刪除仍執行。"""
+        with patch("app.services.resource_service.get_s3_client") as mock_get_s3:
+            mock_s3 = MagicMock()
+            mock_get_s3.return_value = mock_s3
+            mock_s3.delete_objects.side_effect = Exception("MinIO connection failed")
+            mock_s3.delete_bucket.side_effect = Exception("MinIO connection failed")
 
-    def test_hard_delete_batch_over_1000(self):
-        """分批刪除超過 1000 物件"""
-        mock_audios = [MagicMock() for _ in range(1500)]
-        # ...
-        assert mock_s3.delete_objects.call_count == 2  # 1000 + 500
+            mock_db = MagicMock()
+            mock_resource = MagicMock()
+            mock_resource.id = 1
+            mock_resource.name = "test-resource"
+
+            mock_db.query.return_value.filter.return_value.first.return_value = mock_resource
+            mock_db.query.return_value.filter.return_value.all.return_value = []
+            mock_db.query.return_value.filter.return_value.delete.return_value = 0
+
+            from app.services.resource_service import ResourceService
+            service = ResourceService(mock_db)
+            result = service.hard_delete_resource(1)
+
+            # DB commit 仍被呼叫
+            mock_db.commit.assert_called_once()
+            assert "permanently deleted" in result["message"]
+
+    def test_hard_delete_batch_over_1000_objects(self):
+        """測試分批刪除超過 1000 個物件。"""
+        with patch("app.services.resource_service.get_s3_client") as mock_get_s3:
+            mock_s3 = MagicMock()
+            mock_get_s3.return_value = mock_s3
+
+            mock_db = MagicMock()
+            mock_resource = MagicMock()
+            mock_resource.id = 1
+            mock_resource.name = "large-resource"
+
+            # Mock 1500 個物件
+            mock_items = [MagicMock(object_key=f"item_{i}.wav") for i in range(1500)]
+
+            mock_db.query.return_value.filter.return_value.first.return_value = mock_resource
+            mock_db.query.return_value.filter.return_value.all.return_value = mock_items
+            mock_db.query.return_value.filter.return_value.delete.return_value = 1500
+
+            from app.services.resource_service import ResourceService
+            service = ResourceService(mock_db)
+            result = service.hard_delete_resource(1)
+
+            # 驗證分批呼叫 (1000 + 500)
+            assert mock_s3.delete_objects.call_count == 2
 ```
 
 ### 名稱釋放測試
 ```python
 class TestNameRelease:
+    """測試 Hard Delete 後名稱可重新使用。"""
+
     def test_soft_deleted_name_is_reserved(self):
-        """軟刪除名稱被保留"""
-        # 模擬有軟刪除記錄
+        """測試軟刪除名稱被保留，無法建立同名資源。"""
+        mock_db = MagicMock()
+
+        # 模擬: 無活躍記錄，但有軟刪除記錄
+        call_count = [0]
+        def filter_side_effect(*args, **kwargs):
+            mock_result = MagicMock()
+            call_count[0] += 1
+            if call_count[0] <= 2:
+                mock_result.first.return_value = None  # 無活躍記錄
+            else:
+                mock_result.first.return_value = MagicMock()  # 有軟刪除記錄
+            return mock_result
+
+        mock_db.query.return_value.filter.return_value.filter.side_effect = filter_side_effect
+
+        from app.services.resource_service import ResourceService
+        service = ResourceService(mock_db)
+
         with pytest.raises(HTTPException) as exc_info:
             service.create_resource(resource_in)
+
+        assert exc_info.value.status_code == 400
         assert "Hard delete" in exc_info.value.detail
 
     def test_name_available_after_hard_delete(self):
-        """Hard Delete 後名稱可用"""
-        # 模擬所有查詢回傳 None
-        service.create_resource(resource_in)
-        mock_db.add.assert_called_once()
+        """測試 Hard Delete 後名稱可重新使用。"""
+        mock_db = MagicMock()
+
+        # 模擬: 所有查詢回傳 None (名稱可用)
+        mock_db.query.return_value.filter.return_value.filter.return_value.first.return_value = None
+        mock_db.query.return_value.filter.return_value.first.return_value = None
+
+        with patch("app.services.resource_service.get_s3_client") as mock_s3:
+            mock_s3.return_value = MagicMock()
+
+            from app.services.resource_service import ResourceService
+            service = ResourceService(mock_db)
+            service.create_resource(resource_in)
+
+            mock_db.add.assert_called_once()
 ```
 
 ---
