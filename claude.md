@@ -86,14 +86,9 @@
 - `MINIO_IP_ADDRESS`, `MINIO_PORT`, `MINIO_PORT_OUT`, `MINIO_CONSOLE_PORT`
 - `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`
 
-## 7. 目前開發狀態與待辦事項 (Current Status & TODOs)
-- [x] 專案初始化
-- [x] 資料庫連線設定
-- [x] 使用者登入/註冊 API
-- [x] Project/Point/Deployment/Audio CRUD API
-- [x] 軟刪除功能 (Soft Delete)
-- [x] Recorder 刪除/還原端點
-- [x] MinIO 整合至 Docker Compose
+## 7. 開發狀態
+- 目前版本: Phase 3 完成
+- 開發歷程: `.claude/docs/changelog.md`
 
 ## 8. 設計模式 (Design Patterns)
 
@@ -119,10 +114,11 @@ Index("uq_xxx_active", "field", unique=True, postgresql_where=(is_deleted.is_(Fa
 
 ### 多角色討論模式
 手動觸發不同角色的 Task Agent 進行深度討論：
-- 🎯 **提問者**: 使用者視角、邊界情況、失敗情境
-- 🏗️ **架構師**: 一致性、可靠性、方案比較
-- 💻 **後端工程師**: 程式碼結構、錯誤處理
-- 🧪 **測試工程師**: 測試策略、覆蓋率、Mock 設計
+-  **提問者**: 使用者視角、邊界情況、失敗情境
+-  **架構師**: 一致性、可靠性、方案比較
+-  **後端工程師**: 程式碼結構、錯誤處理
+-  **測試工程師**: 測試策略、覆蓋率、Mock 設計
 
-## 9. Claude回覆語言
+## 9. Claude回覆內容
 - 中文
+- 不使用emoji
