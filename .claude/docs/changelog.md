@@ -16,3 +16,10 @@
 - [x] Recorder 刪除/還原端點
 - [x] Hard Delete 功能 (Project/Point/Deployment/Audio)
 - [x] Hard Delete 測試 (17 個案例)
+
+### Phase 4: 認證增強 (2026-02)
+- [x] Google OAuth 登入/註冊
+- [x] OAuth 帳號設定密碼
+- [x] 綁定/解除綁定 Google
+- [x] 忘記密碼/重設密碼
+- [x] OAuth 測試 (28 個案例)

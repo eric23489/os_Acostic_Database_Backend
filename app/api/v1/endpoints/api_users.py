@@ -1,13 +1,21 @@
-from typing import List
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
-from app.core.security import create_access_token
 from app.core.auth import get_current_user
+from app.core.security import create_access_token
 from app.db.session import get_db
 from app.enums.enums import UserRole
+from app.schemas.oauth import (
+    OAuthLinkRequest,
+    OAuthLinkResponse,
+    OAuthUnlinkResponse,
+    SetPasswordRequest,
+    SetPasswordResponse,
+)
 from app.schemas.user import Token, UserCreate, UserResponse, UserUpdate
+from app.services.oauth_service import OAuthService
 from app.services.user_service import UserService
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -38,10 +46,10 @@ def login(
 @router.get("/me", response_model=UserResponse)
 def read_users_me(current_user=Depends(get_current_user)):
     """Get current logged-in user info."""
-    return current_user
+    return UserResponse.from_orm_with_password_check(current_user)
 
 
-@router.get("/", response_model=List[UserResponse])
+@router.get("/", response_model=list[UserResponse])
 def read_users(
     skip: int = 0,
     limit: int = 100,
@@ -111,3 +119,50 @@ def restore_user(
             detail="The user doesn't have enough privileges",
         )
     return UserService(db).restore_user(user_id)
+
+
+@router.put("/me/password", response_model=SetPasswordResponse)
+def set_password(
+    request: SetPasswordRequest,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Set or update password for current user.
+
+    OAuth-only users can use this to set a password for alternative login.
+    """
+    UserService(db).set_password(current_user.id, request.password)
+    return SetPasswordResponse(message="Password has been set successfully")
+
+
+@router.post("/me/oauth/link", response_model=OAuthLinkResponse)
+def link_oauth(
+    request: OAuthLinkRequest,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Link Google account to current user.
+
+    The code should be obtained by completing the Google OAuth flow
+    from /oauth/google/authorize.
+    """
+    service = OAuthService(db)
+    user = service.link_google_account(current_user, request.code)
+    return OAuthLinkResponse(
+        message="Google account linked successfully",
+        oauth_provider=user.oauth_provider,
+    )
+
+
+@router.delete("/me/oauth/unlink", response_model=OAuthUnlinkResponse)
+def unlink_oauth(
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Unlink Google account from current user.
+
+    Requires that the user has a password set first.
+    """
+    service = OAuthService(db)
+    service.unlink_google_account(current_user)
+    return OAuthUnlinkResponse(message="Google account unlinked successfully")

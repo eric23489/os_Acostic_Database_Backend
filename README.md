@@ -6,7 +6,20 @@
 
 ## 核心功能 (Features)
 
-- 待補
+### 資料管理
+- Project / Point / Deployment / Audio CRUD API
+- 軟刪除與還原功能
+- Hard Delete 永久刪除 (Admin)
+
+### 認證系統
+- 使用者註冊 / 登入 (JWT)
+- Google OAuth 登入 / 註冊
+- 忘記密碼 / 重設密碼
+- OAuth 帳號綁定 / 解除綁定
+
+### 儲存系統
+- MinIO 物件儲存整合
+- Presigned URL 上傳 / 下載
 
 ## 技術棧 (Tech Stack)
 
@@ -80,6 +93,16 @@ AWS_ACCESS_KEY_ID=[MINIO_USERNAME]
 AWS_SECRET_ACCESS_KEY=[MINIO_PASSWORD]
 MINIO_BUCKET_NAME=data
 
+# Google OAuth (optional)
+GOOGLE_OAUTH_CLIENT_ID=[your-google-client-id]
+GOOGLE_OAUTH_CLIENT_SECRET=[your-google-client-secret]
+GOOGLE_OAUTH_REDIRECT_URI=http://localhost:8000/api/v1/oauth/google/callback
+
+# Docker Network Settings
+DOCKER_SUBNET=172.28.0.0/16
+DB_STATIC_IP=172.28.0.2
+MINIO_STATIC_IP=172.28.0.3
+APP_STATIC_IP=172.28.0.4
 ```
 
 ### 6. 如何使用 (Usage)
@@ -125,6 +148,14 @@ MINIO_BUCKET_NAME=data
 ### 7. 如何測試 (Testing)
 
 ### 8. 注意事項
+
+- Google OAuth 設定 (選用)
+
+    若需使用 Google 登入功能，請至 [Google Cloud Console](https://console.cloud.google.com/) 建立 OAuth 2.0 憑證：
+    1. 建立專案並啟用 Google+ API
+    2. 建立 OAuth client ID (Web application)
+    3. 設定 Authorized redirect URI
+    4. 將 Client ID 與 Secret 填入 `.env`
 
 - 資料庫遷移 (Alembic & PostGIS)
 
