@@ -1,6 +1,7 @@
-from typing import Optional
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
+
 from pydantic import BaseModel, ConfigDict, field_serializer
+
 from app.enums.enums import RecorderStatus
 
 
@@ -9,12 +10,12 @@ class RecorderBase(BaseModel):
     model: str
     sn: str
     sensitivity: float
-    high_gain: Optional[float] = None
-    low_gain: Optional[float] = None
-    status: Optional[str] = RecorderStatus.IN_SERVICE.value
-    owner: Optional[str] = "Ocean Sound"
-    recorder_channels: Optional[int] = 1
-    description: Optional[str] = None
+    high_gain: float | None = None
+    low_gain: float | None = None
+    status: RecorderStatus | None = RecorderStatus.IN_SERVICE
+    owner: str | None = "Ocean Sound"
+    recorder_channels: int | None = 1
+    description: str | None = None
 
 
 class RecorderCreate(RecorderBase):
@@ -22,27 +23,27 @@ class RecorderCreate(RecorderBase):
 
 
 class RecorderUpdate(BaseModel):
-    brand: Optional[str] = None
-    model: Optional[str] = None
-    sn: Optional[str] = None
-    sensitivity: Optional[float] = None
-    high_gain: Optional[float] = None
-    low_gain: Optional[float] = None
-    status: Optional[str] = None
-    owner: Optional[str] = None
-    recorder_channels: Optional[int] = None
-    description: Optional[str] = None
+    brand: str | None = None
+    model: str | None = None
+    sn: str | None = None
+    sensitivity: float | None = None
+    high_gain: float | None = None
+    low_gain: float | None = None
+    status: RecorderStatus | None = None
+    owner: str | None = None
+    recorder_channels: int | None = None
+    description: str | None = None
 
 
 class RecorderResponse(RecorderBase):
     id: int
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, use_enum_values=True)
 
     @field_serializer("created_at", "updated_at")
-    def serialize_dt(self, dt: Optional[datetime], _info):
+    def serialize_dt(self, dt: datetime | None, _info):
         if dt is None:
             return None
         return dt.astimezone(timezone(timedelta(hours=8)))

@@ -312,7 +312,7 @@ class TestDeploymentSoftDelete:
             mock_deployment.fs = None
             mock_deployment.sensitivity = None
             mock_deployment.gain = None
-            mock_deployment.status = "test"
+            mock_deployment.status = "un-deployed"
             mock_deployment.description = None
             mock_deployment.created_at = datetime.now(timezone.utc)
             mock_deployment.updated_at = datetime.now(timezone.utc)
@@ -373,7 +373,7 @@ class TestDeploymentSoftDelete:
             mock_deployment.fs = None
             mock_deployment.sensitivity = None
             mock_deployment.gain = None
-            mock_deployment.status = "test"
+            mock_deployment.status = "un-deployed"
             mock_deployment.description = None
             mock_deployment.created_at = datetime.now(timezone.utc)
             mock_deployment.updated_at = datetime.now(timezone.utc)
@@ -579,7 +579,7 @@ class TestRecorderSoftDelete:
             mock_recorder.sensitivity = -160.0
             mock_recorder.high_gain = None
             mock_recorder.low_gain = None
-            mock_recorder.status = "in_service"
+            mock_recorder.status = "in-service"
             mock_recorder.owner = "Ocean Sound"
             mock_recorder.recorder_channels = 1
             mock_recorder.description = None
@@ -635,7 +635,7 @@ class TestRecorderSoftDelete:
             mock_recorder.sensitivity = -160.0
             mock_recorder.high_gain = None
             mock_recorder.low_gain = None
-            mock_recorder.status = "in_service"
+            mock_recorder.status = "in-service"
             mock_recorder.owner = "Ocean Sound"
             mock_recorder.recorder_channels = 1
             mock_recorder.description = None
@@ -784,7 +784,7 @@ class TestSoftDeleteFiltering:
             mock_deployment.fs = None
             mock_deployment.sensitivity = None
             mock_deployment.gain = None
-            mock_deployment.status = "test"
+            mock_deployment.status = "un-deployed"
             mock_deployment.description = None
             mock_deployment.created_at = datetime.now(timezone.utc)
             mock_deployment.updated_at = datetime.now(timezone.utc)
@@ -854,7 +854,7 @@ class TestSoftDeleteFiltering:
             mock_recorder.sensitivity = -160.0
             mock_recorder.high_gain = None
             mock_recorder.low_gain = None
-            mock_recorder.status = "in_service"
+            mock_recorder.status = "in-service"
             mock_recorder.owner = "Ocean Sound"
             mock_recorder.recorder_channels = 1
             mock_recorder.description = None
