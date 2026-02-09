@@ -13,3 +13,6 @@ moto[s3]
 pypinyin
 ruff
 pre-commit
+requests
+google-auth
+google-auth-oauthlib

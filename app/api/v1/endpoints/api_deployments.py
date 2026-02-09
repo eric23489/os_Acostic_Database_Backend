@@ -97,3 +97,26 @@ def restore_deployment(
             detail="Only the deleter or admin can restore this resource",
         )
     return DeploymentService(db).restore_deployment(deployment_id)
+
+
+@router.delete("/{deployment_id}/permanent", response_model=dict)
+def hard_delete_deployment(
+    deployment_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """
+    永久刪除 Deployment 及所有相關資料。
+
+    - 刪除 MinIO 中該 Deployment 下的所有物件
+    - 刪除資料庫中的所有相關記錄
+    - 釋放 phase，可重新使用
+
+    需要 Admin 權限。
+    """
+    if current_user.role != UserRole.ADMIN.value:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin permission required for permanent deletion",
+        )
+    return DeploymentService(db).hard_delete_deployment(deployment_id)

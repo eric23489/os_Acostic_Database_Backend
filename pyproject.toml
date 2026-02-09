@@ -30,7 +30,8 @@ line-length = 88
 select = ["E", "F", "W", "I", "UP", "B", "N"]
 
 # 忽略特定規則
-ignore = []
+# B008: FastAPI Depends() in function defaults is standard practice
+ignore = ["B008"]
 
 # --- Ruff Formatter (格式化器) 的設定 ---
 [tool.ruff.format]

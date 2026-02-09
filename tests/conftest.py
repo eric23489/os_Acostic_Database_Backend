@@ -27,6 +27,8 @@ def mock_current_user():
     user.role = UserRole.ADMIN.value
     user.full_name = "Admin User"
     user.is_active = True
+    user.password_hash = "hashed-password"
+    user.oauth_provider = None
     return user
 
 

@@ -1,4 +1,5 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -48,6 +49,9 @@ class UserService:
             .first()
         )
         if not user:
+            return None
+        # OAuth-only users have no password
+        if not user.password_hash:
             return None
         if not verify_password(password, user.password_hash):
             return None
@@ -103,7 +107,7 @@ class UserService:
             )
 
         user.is_deleted = True
-        user.deleted_at = datetime.now(timezone.utc)
+        user.deleted_at = datetime.now(UTC)
         user.deleted_by = deleted_by_id
         self.db.add(user)
         self.db.commit()
@@ -136,6 +140,40 @@ class UserService:
         user.is_deleted = False
         user.deleted_at = None
         user.deleted_by = None
+        self.db.add(user)
+        self.db.commit()
+        self.db.refresh(user)
+        return user
+
+    def set_password(self, user_id: int, password: str) -> UserInfo:
+        """Set or update password for user.
+
+        Args:
+            user_id: User ID.
+            password: New password.
+
+        Returns:
+            Updated user.
+        """
+        user = (
+            self.db.query(UserInfo)
+            .filter(UserInfo.id == user_id, UserInfo.is_deleted.is_(False))
+            .first()
+        )
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found",
+            )
+
+        # Validate password length
+        if len(password) < 8:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Password must be at least 8 characters",
+            )
+
+        user.password_hash = hash_password(password)
         self.db.add(user)
         self.db.commit()
         self.db.refresh(user)
