@@ -23,3 +23,10 @@
 - [x] 綁定/解除綁定 Google
 - [x] 忘記密碼/重設密碼
 - [x] OAuth 測試 (28 個案例)
+
+### Phase 5: 測試覆蓋率提升 (2026-02)
+- [x] UserService 單元測試 (19 個案例)
+- [x] Auth 單元測試 (10 個案例)
+- [x] PasswordResetService 單元測試 (13 個案例)
+- [x] OAuthService 單元測試 (17 個案例)
+- [x] 覆蓋率提升 75% → 85%
