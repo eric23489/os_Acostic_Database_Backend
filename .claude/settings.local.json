@@ -36,7 +36,10 @@
       "Bash(git stash:*)",
       "WebFetch(domain:www.notion.so)",
       "Bash(git rebase:*)",
-      "Bash(GIT_EDITOR=true git rebase:*)"
+      "Bash(GIT_EDITOR=true git rebase:*)",
+      "Bash(alembic revision:*)",
+      "Bash(alembic heads:*)",
+      "Bash(cd:*)"
     ]
   }
 }

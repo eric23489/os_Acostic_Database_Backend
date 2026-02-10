@@ -46,3 +46,7 @@ class CetaceanCallType(IntEnum):
     SINE = 6  # sin型
     CLICK = 7
     BURST = 8
+
+
+class ProjectType(StrEnum):
+    WIND_FARM = "wind-farm"

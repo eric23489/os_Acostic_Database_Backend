@@ -46,7 +46,7 @@ def login(
 @router.get("/me", response_model=UserResponse)
 def read_users_me(current_user=Depends(get_current_user)):
     """Get current logged-in user info."""
-    return UserResponse.from_orm_with_password_check(current_user)
+    return current_user  # model_validator auto-computes has_password
 
 
 @router.get("/", response_model=list[UserResponse])

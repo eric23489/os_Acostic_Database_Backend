@@ -17,6 +17,7 @@ class ProjectBase(BaseModel):
     contact_name: Optional[str] = None
     contact_phone: Optional[str] = None
     contact_email: Optional[str] = None
+    project_type: Optional[str] = None
 
     @field_validator("name")
     @classmethod
@@ -68,6 +69,7 @@ class ProjectUpdate(BaseModel):
     contact_name: Optional[str] = None
     contact_phone: Optional[str] = None
     contact_email: Optional[str] = None
+    project_type: Optional[str] = None
 
 
 class ProjectResponse(ProjectBase):

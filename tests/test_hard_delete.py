@@ -310,20 +310,20 @@ class TestProjectServiceHardDelete:
             mock_project.id = 1
             mock_project.name = "test-project"
 
-            # Mock Audios
-            mock_audio1 = MagicMock()
-            mock_audio1.object_key = "point1/2024/01/audio1.wav"
-            mock_audio2 = MagicMock()
-            mock_audio2.object_key = "point1/2024/01/audio2.wav"
+            # Mock audio object_keys (yield_per returns tuples)
+            mock_audio_keys = [
+                ("point1/2024/01/audio1.wav",),
+                ("point1/2024/01/audio2.wav",),
+            ]
 
-            # Setup query chain
+            # Setup query chain for project lookup
             mock_db.query.return_value.filter.return_value.first.return_value = (
                 mock_project
             )
-            mock_db.query.return_value.filter.return_value.all.return_value = [
-                mock_audio1,
-                mock_audio2,
-            ]
+            # Mock yield_per iterator for audio keys
+            mock_db.query.return_value.filter.return_value.yield_per.return_value = (
+                iter(mock_audio_keys)
+            )
             mock_db.query.return_value.filter.return_value.delete.return_value = 2
 
             from app.services.project_service import ProjectService
@@ -583,15 +583,16 @@ class TestHardDeleteBatchProcessing:
             mock_project.id = 1
             mock_project.name = "large-project"
 
-            # Mock 1500 個 Audio
-            mock_audios = []
-            for i in range(1500):
-                audio = MagicMock()
-                audio.object_key = f"point/2024/01/audio_{i}.wav"
-                mock_audios.append(audio)
+            # Mock 1500 個 Audio keys (yield_per returns tuples)
+            mock_audio_keys = [
+                (f"point/2024/01/audio_{i}.wav",) for i in range(1500)
+            ]
 
             mock_db.query.return_value.filter.return_value.first.return_value = mock_project
-            mock_db.query.return_value.filter.return_value.all.return_value = mock_audios
+            # Mock yield_per iterator for audio keys
+            mock_db.query.return_value.filter.return_value.yield_per.return_value = (
+                iter(mock_audio_keys)
+            )
             mock_db.query.return_value.filter.return_value.delete.return_value = 1500
 
             from app.services.project_service import ProjectService

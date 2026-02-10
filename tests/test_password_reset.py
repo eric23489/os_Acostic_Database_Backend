@@ -35,7 +35,10 @@ class TestForgotPassword:
             assert data["has_google_oauth"] is False
 
     def test_forgot_password_oauth_only_account(self, client, mock_db):
-        """Test forgot password for OAuth-only account."""
+        """Test forgot password for OAuth-only account.
+
+        For security, the response should NOT reveal OAuth status.
+        """
         with patch(
             "app.api.v1.endpoints.api_auth.PasswordResetService"
         ) as MockService:
@@ -43,7 +46,7 @@ class TestForgotPassword:
             mock_service.initiate_password_reset.return_value = (
                 None,  # no token
                 False,  # has_password
-                True,  # has_google_oauth
+                True,  # has_google_oauth (but should not be exposed)
             )
 
             response = client.post(
@@ -53,11 +56,15 @@ class TestForgotPassword:
 
             assert response.status_code == 200
             data = response.json()
-            assert "google" in data["message"].lower()
-            assert data["has_google_oauth"] is True
+            # Security: always return generic message, never expose OAuth status
+            assert "email" in data["message"].lower() or "sent" in data["message"].lower()
+            assert data["has_google_oauth"] is False  # Never expose for security
 
     def test_forgot_password_with_google_and_password(self, client, mock_db):
-        """Test forgot password for account with both password and Google."""
+        """Test forgot password for account with both password and Google.
+
+        For security, the response should NOT reveal OAuth status.
+        """
         with patch(
             "app.api.v1.endpoints.api_auth.PasswordResetService"
         ) as MockService:
@@ -65,7 +72,7 @@ class TestForgotPassword:
             mock_service.initiate_password_reset.return_value = (
                 "reset-token-123",
                 True,  # has_password
-                True,  # has_google_oauth
+                True,  # has_google_oauth (but should not be exposed)
             )
             mock_service.send_reset_email.return_value = True
 
@@ -76,7 +83,7 @@ class TestForgotPassword:
 
             assert response.status_code == 200
             data = response.json()
-            assert data["has_google_oauth"] is True
+            assert data["has_google_oauth"] is False  # Never expose for security
 
     def test_forgot_password_nonexistent_email(self, client, mock_db):
         """Test forgot password for non-existent email (should return success)."""
