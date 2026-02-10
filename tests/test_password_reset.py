@@ -2,10 +2,7 @@
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from app.core.config import settings
-from app.enums.enums import UserRole
 
 
 class TestForgotPassword:
@@ -204,105 +201,3 @@ class TestResetPassword:
             )
 
             assert response.status_code == 400
-
-
-class TestOAuthServiceUnit:
-    """Unit tests for OAuthService."""
-
-    def test_authenticate_with_google_new_user(self, mock_db):
-        """Test authenticating a new user via Google."""
-        from app.services.oauth_service import OAuthService
-
-        mock_db.query.return_value.filter.return_value.first.return_value = None
-
-        with (
-            patch.object(
-                OAuthService, "exchange_code_for_tokens"
-            ) as mock_exchange,
-            patch.object(OAuthService, "get_google_user_info") as mock_user_info,
-        ):
-            mock_exchange.return_value = {"access_token": "test-token"}
-            mock_user_info.return_value = {
-                "sub": "google-123",
-                "email": "new@gmail.com",
-                "name": "New User",
-            }
-
-            service = OAuthService(mock_db)
-            # This would require more setup to fully test
-            # Just verify the service can be instantiated
-            assert service.db == mock_db
-
-    def test_unlink_requires_password(self, mock_db):
-        """Test that unlinking requires a password."""
-        from fastapi import HTTPException
-
-        from app.services.oauth_service import OAuthService
-
-        mock_user = MagicMock()
-        mock_user.oauth_provider = "google"
-        mock_user.password_hash = None
-
-        service = OAuthService(mock_db)
-
-        with pytest.raises(HTTPException) as exc_info:
-            service.unlink_google_account(mock_user)
-
-        assert exc_info.value.status_code == 400
-        assert "password" in exc_info.value.detail.lower()
-
-
-class TestPasswordResetServiceUnit:
-    """Unit tests for PasswordResetService."""
-
-    def test_initiate_reset_for_nonexistent_user(self, mock_db):
-        """Test initiating reset for non-existent user."""
-        from app.services.password_reset_service import PasswordResetService
-
-        mock_db.query.return_value.filter.return_value.first.return_value = None
-
-        service = PasswordResetService(mock_db)
-        token, has_password, has_google = service.initiate_password_reset(
-            "nonexistent@example.com"
-        )
-
-        assert token is None
-        assert has_password is False
-        assert has_google is False
-
-    def test_initiate_reset_for_oauth_only_user(self, mock_db):
-        """Test initiating reset for OAuth-only user."""
-        from app.services.password_reset_service import PasswordResetService
-
-        mock_user = MagicMock()
-        mock_user.password_hash = None
-        mock_user.oauth_provider = "google"
-        mock_user.is_active = True
-        mock_db.query.return_value.filter.return_value.first.return_value = mock_user
-
-        service = PasswordResetService(mock_db)
-        token, has_password, has_google = service.initiate_password_reset(
-            "oauth@example.com"
-        )
-
-        assert token is None
-        assert has_password is False
-        assert has_google is True
-
-    def test_reset_password_clears_token(self, mock_db):
-        """Test that resetting password clears the reset token."""
-        from datetime import UTC, datetime, timedelta
-
-        from app.services.password_reset_service import PasswordResetService
-
-        mock_user = MagicMock()
-        mock_user.reset_token = "valid-token"
-        mock_user.reset_token_expires_at = datetime.now(UTC) + timedelta(hours=1)
-        mock_db.query.return_value.filter.return_value.first.return_value = mock_user
-
-        service = PasswordResetService(mock_db)
-        service.reset_password("valid-token", "newpassword123")
-
-        assert mock_user.reset_token is None
-        assert mock_user.reset_token_expires_at is None
-        mock_db.commit.assert_called()

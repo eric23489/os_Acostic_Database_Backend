@@ -96,7 +96,7 @@ def seed_data():
                             point_id=point.id,
                             recorder_id=recorder.id,
                             phase=d_idx + 1,
-                            start_time=datetime.now(timezone.utc),
+                            report_start_time=datetime.now(timezone.utc),
                             status="test",
                         )
                         db.add(deployment)
