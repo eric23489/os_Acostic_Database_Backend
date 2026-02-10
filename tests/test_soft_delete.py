@@ -302,8 +302,8 @@ class TestDeploymentSoftDelete:
             mock_deployment.point_id = 1
             mock_deployment.recorder_id = 1
             mock_deployment.phase = 1
-            mock_deployment.start_time = None
-            mock_deployment.end_time = None
+            mock_deployment.report_start_time = None
+            mock_deployment.report_end_time = None
             mock_deployment.deploy_time = None
             mock_deployment.return_time = None
             mock_deployment.gps_lat_exe = None
@@ -363,8 +363,8 @@ class TestDeploymentSoftDelete:
             mock_deployment.point_id = 1
             mock_deployment.recorder_id = 1
             mock_deployment.phase = 1
-            mock_deployment.start_time = None
-            mock_deployment.end_time = None
+            mock_deployment.report_start_time = None
+            mock_deployment.report_end_time = None
             mock_deployment.deploy_time = None
             mock_deployment.return_time = None
             mock_deployment.gps_lat_exe = None
@@ -774,8 +774,8 @@ class TestSoftDeleteFiltering:
             mock_deployment.point_id = 1
             mock_deployment.recorder_id = 1
             mock_deployment.phase = 1
-            mock_deployment.start_time = None
-            mock_deployment.end_time = None
+            mock_deployment.report_start_time = None
+            mock_deployment.report_end_time = None
             mock_deployment.deploy_time = None
             mock_deployment.return_time = None
             mock_deployment.gps_lat_exe = None

@@ -59,7 +59,7 @@ def seed_data(num_audios=10000):
             point_id=point.id,
             recorder_id=recorder.id,
             phase=1,
-            start_time=datetime.now(timezone.utc),
+            report_start_time=datetime.now(timezone.utc),
             status="benchmark",
         )
         db.add(deployment)
