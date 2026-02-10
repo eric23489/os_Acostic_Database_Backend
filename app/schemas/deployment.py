@@ -61,7 +61,7 @@ class DeploymentResponse(DeploymentBase):
     created_at: datetime | None = None
     updated_at: datetime | None = None
 
-    model_config = ConfigDict(from_attributes=True, use_enum_values=True)
+    model_config = ConfigDict(from_attributes=True)
 
     @field_serializer(
         "start_time",
@@ -75,6 +75,12 @@ class DeploymentResponse(DeploymentBase):
         if dt is None:
             return None
         return dt.astimezone(timezone(timedelta(hours=8)))
+
+    @field_serializer("status")
+    def serialize_status(self, status: DeploymentStatus | None, _info):
+        if status is None:
+            return None
+        return status.value
 
 
 class DeploymentWithDetailsResponse(DeploymentResponse):

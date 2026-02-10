@@ -40,10 +40,16 @@ class RecorderResponse(RecorderBase):
     created_at: datetime | None = None
     updated_at: datetime | None = None
 
-    model_config = ConfigDict(from_attributes=True, use_enum_values=True)
+    model_config = ConfigDict(from_attributes=True)
 
     @field_serializer("created_at", "updated_at")
     def serialize_dt(self, dt: datetime | None, _info):
         if dt is None:
             return None
         return dt.astimezone(timezone(timedelta(hours=8)))
+
+    @field_serializer("status")
+    def serialize_status(self, status: RecorderStatus | None, _info):
+        if status is None:
+            return None
+        return status.value

@@ -32,13 +32,19 @@ class UserResponse(UserBase):
     created_at: datetime | None = None
     updated_at: datetime | None = None
 
-    model_config = ConfigDict(from_attributes=True, use_enum_values=True)
+    model_config = ConfigDict(from_attributes=True)
 
     @field_serializer("last_login_at", "created_at", "updated_at")
     def serialize_dt(self, dt: datetime | None, _info):
         if dt is None:
             return None
         return dt.astimezone(timezone(timedelta(hours=8)))
+
+    @field_serializer("role")
+    def serialize_role(self, role: UserRole | None, _info):
+        if role is None:
+            return None
+        return role.value
 
 
 class Token(BaseModel):

@@ -322,4 +322,4 @@ class TestEnumSerializationConsistency:
         restored = DeploymentResponse.model_validate(json_data)
 
         assert restored.status == original.status
-        assert restored.status == DeploymentStatus.SUCCESS
+        assert restored.status == DeploymentStatus.SUCCESS.value

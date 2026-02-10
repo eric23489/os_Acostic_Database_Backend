@@ -291,6 +291,7 @@ class TestUserServiceUpdateUser:
 
         assert mock_user.full_name == "Updated Name"
         # email 不應被修改 (仍保持原值)
+        assert mock_user.email == "original@example.com"
 
 
 # =============================================================================

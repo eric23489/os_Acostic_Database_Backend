@@ -223,7 +223,7 @@ class TestDeploymentServiceUpdateDeployment:
         service = DeploymentService(mock_db)
         service.update_deployment(1, update_data)
 
-        assert mock_deployment.status == DeploymentStatus.SUCCESS
+        assert mock_deployment.status == DeploymentStatus.SUCCESS.value
         mock_db.commit.assert_called_once()
 
     def test_update_deployment_not_found_raises_404(self):
