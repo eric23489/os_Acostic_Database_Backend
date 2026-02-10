@@ -367,6 +367,8 @@ class TestUserApiEnumValidation:
                 mock_user.last_login_at = None
                 mock_user.created_at = datetime.now(UTC)
                 mock_user.updated_at = datetime.now(UTC)
+                mock_user.oauth_provider = None
+                mock_user.password_hash = "hashed"
                 mock_service.create_user.return_value = mock_user
 
                 response = client.post(

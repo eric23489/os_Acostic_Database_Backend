@@ -1,0 +1,32 @@
+# Changelog 開發歷程
+
+## 已完成功能
+
+### Phase 1: 基礎建設 (2025-01)
+- [x] 專案初始化
+- [x] 資料庫連線設定
+- [x] 使用者登入/註冊 API
+
+### Phase 2: 核心功能 (2025-01)
+- [x] Project/Point/Deployment/Audio CRUD API
+- [x] MinIO 整合至 Docker Compose
+
+### Phase 3: 刪除功能 (2025-02)
+- [x] 軟刪除功能 (Soft Delete)
+- [x] Recorder 刪除/還原端點
+- [x] Hard Delete 功能 (Project/Point/Deployment/Audio)
+- [x] Hard Delete 測試 (17 個案例)
+
+### Phase 4: 認證增強 (2026-02)
+- [x] Google OAuth 登入/註冊
+- [x] OAuth 帳號設定密碼
+- [x] 綁定/解除綁定 Google
+- [x] 忘記密碼/重設密碼
+- [x] OAuth 測試 (28 個案例)
+
+### Phase 5: 測試覆蓋率提升 (2026-02)
+- [x] UserService 單元測試 (19 個案例)
+- [x] Auth 單元測試 (10 個案例)
+- [x] PasswordResetService 單元測試 (13 個案例)
+- [x] OAuthService 單元測試 (17 個案例)
+- [x] 覆蓋率提升 75% → 85%

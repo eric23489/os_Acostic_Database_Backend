@@ -28,8 +28,8 @@ class DeploymentInfo(Base):
     )
     recorder = relationship("RecorderInfo")
     phase = Column(Integer, default=1)
-    start_time = Column(DateTime(timezone=True), server_default=func.now())
-    end_time = Column(DateTime(timezone=True))
+    report_start_time = Column(DateTime(timezone=True), server_default=func.now())
+    report_end_time = Column(DateTime(timezone=True))
     deploy_time = Column(DateTime(timezone=True))
     return_time = Column(DateTime(timezone=True))
     gps_lat_exe = Column(Float)
@@ -60,7 +60,7 @@ class DeploymentInfo(Base):
         Index(
             "uq_deployment_point_start_time_active",
             "point_id",
-            "start_time",
+            "report_start_time",
             unique=True,
             postgresql_where=(is_deleted.is_(False)),
         ),

@@ -30,6 +30,7 @@ class ProjectInfo(Base):
     )
     deleted_at = Column(DateTime(timezone=True), nullable=True)
     deleted_by = Column(Integer, nullable=True)
+    project_type = Column(String(100), nullable=True)
 
     points = relationship(
         "PointInfo",

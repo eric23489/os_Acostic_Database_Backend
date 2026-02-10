@@ -54,6 +54,7 @@ class TestProjectSoftDelete:
             mock_project.contact_name = None
             mock_project.contact_phone = None
             mock_project.contact_email = None
+            mock_project.project_type = None
             mock_project.created_at = datetime.now(timezone.utc)
             mock_project.updated_at = datetime.now(timezone.utc)
             mock_project.is_deleted = True
@@ -114,6 +115,7 @@ class TestProjectSoftDelete:
             mock_project.contact_name = None
             mock_project.contact_phone = None
             mock_project.contact_email = None
+            mock_project.project_type = None
             mock_project.created_at = datetime.now(timezone.utc)
             mock_project.updated_at = datetime.now(timezone.utc)
             mock_project.is_deleted = False
@@ -717,6 +719,7 @@ class TestSoftDeleteFiltering:
             mock_project.contact_name = None
             mock_project.contact_phone = None
             mock_project.contact_email = None
+            mock_project.project_type = None
             mock_project.created_at = datetime.now(timezone.utc)
             mock_project.updated_at = datetime.now(timezone.utc)
             mock_service.get_projects.return_value = [mock_project]

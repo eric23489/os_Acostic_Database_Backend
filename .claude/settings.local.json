@@ -30,7 +30,16 @@
       "Bash(gh pr create:*)",
       "Bash(gh pr edit:*)",
       "Bash(gh pr checks:*)",
-      "Bash(gh run list:*)"
+      "Bash(gh run list:*)",
+      "Bash(git checkout:*)",
+      "Bash(git pull:*)",
+      "Bash(git stash:*)",
+      "WebFetch(domain:www.notion.so)",
+      "Bash(git rebase:*)",
+      "Bash(GIT_EDITOR=true git rebase:*)",
+      "Bash(alembic revision:*)",
+      "Bash(alembic heads:*)",
+      "Bash(cd:*)"
     ]
   }
 }

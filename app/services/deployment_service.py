@@ -1,12 +1,18 @@
-from datetime import datetime, timedelta, timezone
+import logging
+from datetime import UTC, datetime, timedelta
+
 from fastapi import HTTPException, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
+from app.core.minio import get_s3_client
 from app.models.audio import AudioInfo
 from app.models.deployment import DeploymentInfo
 from app.models.point import PointInfo
+from app.models.project import ProjectInfo
 from app.schemas.deployment import DeploymentCreate, DeploymentUpdate
+
+logger = logging.getLogger(__name__)
 
 
 class DeploymentService:
@@ -98,7 +104,7 @@ class DeploymentService:
     def delete_deployment(self, deployment_id: int, user_id: int) -> DeploymentInfo:
         deployment = self.get_deployment(deployment_id)
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         # 1. Mark Deployment as deleted
         deployment.is_deleted = True
@@ -178,3 +184,87 @@ class DeploymentService:
         self.db.commit()
         self.db.refresh(deployment)
         return deployment
+
+    def hard_delete_deployment(self, deployment_id: int) -> dict:
+        """
+        永久刪除 Deployment 及所有相關資料。
+
+        包含：
+        - 刪除 MinIO 中該 Deployment 下的所有物件
+        - 刪除資料庫中的所有相關記錄 (Audios, Deployment)
+        """
+        # 查詢 Deployment (包含已軟刪除)
+        deployment = (
+            self.db.query(DeploymentInfo)
+            .filter(DeploymentInfo.id == deployment_id)
+            .first()
+        )
+        if not deployment:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Deployment not found",
+            )
+
+        # 取得 bucket 名稱
+        point = (
+            self.db.query(PointInfo)
+            .filter(PointInfo.id == deployment.point_id)
+            .first()
+        )
+        if not point:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Parent point not found",
+            )
+
+        project = (
+            self.db.query(ProjectInfo)
+            .filter(ProjectInfo.id == point.project_id)
+            .first()
+        )
+        if not project:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Parent project not found",
+            )
+        bucket_name = project.name
+
+        # 取得相關 Audio
+        audios = (
+            self.db.query(AudioInfo)
+            .filter(AudioInfo.deployment_id == deployment_id)
+            .all()
+        )
+
+        # 刪除 MinIO 物件
+        s3_client = get_s3_client()
+        if audios:
+            objects_to_delete = [{"Key": a.object_key} for a in audios]
+            for i in range(0, len(objects_to_delete), 1000):
+                batch = objects_to_delete[i : i + 1000]
+                try:
+                    s3_client.delete_objects(
+                        Bucket=bucket_name, Delete={"Objects": batch}
+                    )
+                except Exception as e:
+                    logger.warning(
+                        f"Failed to delete objects in bucket {bucket_name}: {e}"
+                    )
+
+        # 刪除 DB 記錄
+        deleted_audios = (
+            self.db.query(AudioInfo)
+            .filter(AudioInfo.deployment_id == deployment_id)
+            .delete(synchronize_session=False)
+        )
+
+        self.db.query(DeploymentInfo).filter(
+            DeploymentInfo.id == deployment_id
+        ).delete(synchronize_session=False)
+
+        self.db.commit()
+
+        return {
+            "message": "Deployment permanently deleted",
+            "deleted_audios": deleted_audios,
+        }

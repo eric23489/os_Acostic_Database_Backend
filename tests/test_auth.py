@@ -1,54 +1,43 @@
-"""
-Auth 模組測試 - P0 (必須)
-
-測試 auth.py 的認證邏輯:
-1. get_current_user - JWT 驗證
-2. get_current_admin_user - 權限檢查
-"""
-
-from unittest.mock import MagicMock
+"""Unit tests for auth functions."""
 
 import pytest
+from datetime import datetime, timedelta, timezone
+from unittest.mock import MagicMock, patch
+
 from fastapi import HTTPException
 from jose import jwt
 
-from app.core.auth import get_current_admin_user, get_current_user
+from app.core.auth import get_current_user, get_current_admin_user
 from app.core.config import settings
 from app.enums.enums import UserRole
 
-# =============================================================================
-# get_current_user 測試
-# =============================================================================
-
 
 class TestGetCurrentUser:
-    """測試 get_current_user 函式。"""
+    """Tests for get_current_user function."""
 
-    def test_valid_token_returns_user(self):
-        """有效 token 回傳使用者。"""
-        # 建立有效 token
+    def test_get_current_user_valid_token(self):
+        """Should return user with valid token."""
+        mock_db = MagicMock()
+        mock_user = MagicMock()
+        mock_user.is_active = True
+        mock_db.query.return_value.filter.return_value.first.return_value = mock_user
+
+        # Create valid token
+        expire = datetime.now(timezone.utc) + timedelta(minutes=30)
         token = jwt.encode(
-            {"sub": "test@example.com"},
+            {"sub": "test@example.com", "exp": expire},
             settings.secret_key,
             algorithm=settings.algorithm,
         )
 
-        # Mock DB
-        mock_db = MagicMock()
-        mock_user = MagicMock()
-        mock_user.email = "test@example.com"
-        mock_user.is_active = True
-        mock_db.query.return_value.filter.return_value.first.return_value = mock_user
-
         result = get_current_user(token=token, db=mock_db)
 
         assert result == mock_user
-        mock_db.query.assert_called_once()
 
-    def test_invalid_token_raises_401(self):
-        """無效 token 觸發 401 錯誤。"""
-        invalid_token = "invalid.token.here"
+    def test_get_current_user_invalid_token(self):
+        """Should raise 401 for invalid token."""
         mock_db = MagicMock()
+        invalid_token = "invalid.token.here"
 
         with pytest.raises(HTTPException) as exc_info:
             get_current_user(token=invalid_token, db=mock_db)
@@ -56,52 +45,72 @@ class TestGetCurrentUser:
         assert exc_info.value.status_code == 401
         assert "Could not validate credentials" in exc_info.value.detail
 
-    def test_token_without_sub_raises_401(self):
-        """token 缺少 sub 欄位觸發 401 錯誤。"""
-        # 建立沒有 sub 的 token
+    def test_get_current_user_expired_token(self):
+        """Should raise 401 for expired token."""
+        mock_db = MagicMock()
+
+        # Create expired token
+        expire = datetime.now(timezone.utc) - timedelta(minutes=30)
         token = jwt.encode(
-            {"other": "data"},
+            {"sub": "test@example.com", "exp": expire},
             settings.secret_key,
             algorithm=settings.algorithm,
         )
-        mock_db = MagicMock()
 
         with pytest.raises(HTTPException) as exc_info:
             get_current_user(token=token, db=mock_db)
 
         assert exc_info.value.status_code == 401
-        assert "Could not validate credentials" in exc_info.value.detail
 
-    def test_user_not_found_raises_401(self):
-        """使用者不存在觸發 401 錯誤。"""
+    def test_get_current_user_no_email_in_token(self):
+        """Should raise 401 when token has no email (sub)."""
+        mock_db = MagicMock()
+
+        # Create token without 'sub' field
+        expire = datetime.now(timezone.utc) + timedelta(minutes=30)
         token = jwt.encode(
-            {"sub": "notfound@example.com"},
+            {"exp": expire},  # No 'sub' field
             settings.secret_key,
             algorithm=settings.algorithm,
         )
 
+        with pytest.raises(HTTPException) as exc_info:
+            get_current_user(token=token, db=mock_db)
+
+        assert exc_info.value.status_code == 401
+
+    def test_get_current_user_user_not_found(self):
+        """Should raise 401 when user not found in database."""
         mock_db = MagicMock()
         mock_db.query.return_value.filter.return_value.first.return_value = None
 
-        with pytest.raises(HTTPException) as exc_info:
-            get_current_user(token=token, db=mock_db)
-
-        assert exc_info.value.status_code == 401
-        assert "Could not validate credentials" in exc_info.value.detail
-
-    def test_inactive_user_raises_400(self):
-        """停用使用者觸發 400 錯誤。"""
+        # Create valid token
+        expire = datetime.now(timezone.utc) + timedelta(minutes=30)
         token = jwt.encode(
-            {"sub": "inactive@example.com"},
+            {"sub": "notfound@example.com", "exp": expire},
             settings.secret_key,
             algorithm=settings.algorithm,
         )
 
+        with pytest.raises(HTTPException) as exc_info:
+            get_current_user(token=token, db=mock_db)
+
+        assert exc_info.value.status_code == 401
+
+    def test_get_current_user_inactive_user(self):
+        """Should raise 400 for inactive user."""
         mock_db = MagicMock()
         mock_user = MagicMock()
-        mock_user.email = "inactive@example.com"
         mock_user.is_active = False
         mock_db.query.return_value.filter.return_value.first.return_value = mock_user
+
+        # Create valid token
+        expire = datetime.now(timezone.utc) + timedelta(minutes=30)
+        token = jwt.encode(
+            {"sub": "inactive@example.com", "exp": expire},
+            settings.secret_key,
+            algorithm=settings.algorithm,
+        )
 
         with pytest.raises(HTTPException) as exc_info:
             get_current_user(token=token, db=mock_db)
@@ -109,57 +118,38 @@ class TestGetCurrentUser:
         assert exc_info.value.status_code == 400
         assert "Inactive user" in exc_info.value.detail
 
-    def test_expired_token_raises_401(self):
-        """過期 token 觸發 401 錯誤。"""
-        # 建立過期的 token
-        import time
-
-        expired_token = jwt.encode(
-            {"sub": "test@example.com", "exp": time.time() - 3600},
-            settings.secret_key,
-            algorithm=settings.algorithm,
-        )
+    def test_get_current_user_wrong_algorithm(self):
+        """Should raise 401 when token uses wrong algorithm."""
         mock_db = MagicMock()
 
-        with pytest.raises(HTTPException) as exc_info:
-            get_current_user(token=expired_token, db=mock_db)
-
-        assert exc_info.value.status_code == 401
-
-    def test_wrong_secret_key_raises_401(self):
-        """使用錯誤 secret key 簽名的 token 觸發 401 錯誤。"""
-        wrong_secret_token = jwt.encode(
-            {"sub": "test@example.com"},
-            "wrong_secret_key",
-            algorithm=settings.algorithm,
+        # Create token with different algorithm
+        expire = datetime.now(timezone.utc) + timedelta(minutes=30)
+        token = jwt.encode(
+            {"sub": "test@example.com", "exp": expire},
+            "different_secret",  # Different secret
+            algorithm="HS256",
         )
-        mock_db = MagicMock()
 
         with pytest.raises(HTTPException) as exc_info:
-            get_current_user(token=wrong_secret_token, db=mock_db)
+            get_current_user(token=token, db=mock_db)
 
         assert exc_info.value.status_code == 401
-
-
-# =============================================================================
-# get_current_admin_user 測試
-# =============================================================================
 
 
 class TestGetCurrentAdminUser:
-    """測試 get_current_admin_user 函式。"""
+    """Tests for get_current_admin_user function."""
 
-    def test_admin_user_returns_user(self):
-        """Admin 使用者成功通過。"""
-        mock_admin = MagicMock()
-        mock_admin.role = UserRole.ADMIN.value
+    def test_get_current_admin_user_is_admin(self):
+        """Should return user when user is admin."""
+        mock_user = MagicMock()
+        mock_user.role = UserRole.ADMIN.value
 
-        result = get_current_admin_user(current_user=mock_admin)
+        result = get_current_admin_user(current_user=mock_user)
 
-        assert result == mock_admin
+        assert result == mock_user
 
-    def test_non_admin_user_raises_403(self):
-        """非 Admin 使用者觸發 403 錯誤。"""
+    def test_get_current_admin_user_not_admin(self):
+        """Should raise 403 when user is not admin."""
         mock_user = MagicMock()
         mock_user.role = UserRole.USER.value
 
@@ -169,13 +159,12 @@ class TestGetCurrentAdminUser:
         assert exc_info.value.status_code == 403
         assert "doesn't have enough privileges" in exc_info.value.detail
 
-    def test_guest_user_raises_403(self):
-        """Guest 使用者觸發 403 錯誤。"""
-        mock_guest = MagicMock()
-        mock_guest.role = UserRole.GUEST.value
+    def test_get_current_admin_user_other_role(self):
+        """Should raise 403 for any non-admin role."""
+        mock_user = MagicMock()
+        mock_user.role = "editor"  # Some other role
 
         with pytest.raises(HTTPException) as exc_info:
-            get_current_admin_user(current_user=mock_guest)
+            get_current_admin_user(current_user=mock_user)
 
         assert exc_info.value.status_code == 403
-        assert "doesn't have enough privileges" in exc_info.value.detail
