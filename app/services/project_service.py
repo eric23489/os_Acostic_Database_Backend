@@ -334,34 +334,43 @@ class ProjectService:
 
         project_name = project.name
 
-        # 取得所有相關 Audio 的 object_key
+        # 取得所有相關 Audio 的 object_key (只查詢需要的欄位，避免載入整個 row)
         point_ids_sub = self.db.query(PointInfo.id).filter(
             PointInfo.project_id == project_id
         )
         deployment_ids_sub = self.db.query(DeploymentInfo.id).filter(
             DeploymentInfo.point_id.in_(point_ids_sub)
         )
-        audios = (
-            self.db.query(AudioInfo)
+        audio_keys_query = (
+            self.db.query(AudioInfo.object_key)
             .filter(AudioInfo.deployment_id.in_(deployment_ids_sub))
-            .all()
         )
 
-        # 刪除 MinIO 物件
+        # 刪除 MinIO 物件 (使用 yield_per 分批讀取，避免記憶體壓力)
         s3_client = get_s3_client()
         bucket_name = project_name
 
-        if audios:
-            objects_to_delete = [{"Key": a.object_key} for a in audios]
+        objects_batch = []
+        for (object_key,) in audio_keys_query.yield_per(1000):
+            objects_batch.append({"Key": object_key})
             # S3 每次最多刪除 1000 個物件
-            for i in range(0, len(objects_to_delete), 1000):
-                batch = objects_to_delete[i : i + 1000]
+            if len(objects_batch) >= 1000:
                 try:
                     s3_client.delete_objects(
-                        Bucket=bucket_name, Delete={"Objects": batch}
+                        Bucket=bucket_name, Delete={"Objects": objects_batch}
                     )
                 except Exception as e:
                     logger.warning(f"Failed to delete objects in {bucket_name}: {e}")
+                objects_batch = []
+
+        # 處理最後一批未達 1000 筆的物件
+        if objects_batch:
+            try:
+                s3_client.delete_objects(
+                    Bucket=bucket_name, Delete={"Objects": objects_batch}
+                )
+            except Exception as e:
+                logger.warning(f"Failed to delete objects in {bucket_name}: {e}")
 
         # 刪除 MinIO Bucket
         try:

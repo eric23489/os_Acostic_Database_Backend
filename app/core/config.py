@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     # Auth settings
     secret_key: str
     algorithm: str = "HS256"
-    access_token_expire_minutes: int = 30
+    access_token_expire_minutes: int = 60 * 24  # 1 day
 
     # MinIO / AWS settings
     minio_ip_address: str | None = None
@@ -40,10 +40,13 @@ class Settings(BaseSettings):
     # Google OAuth settings
     google_oauth_client_id: str | None = None
     google_oauth_client_secret: str | None = None
-    google_oauth_redirect_uri: str = "http://localhost:8000/api/v1/oauth/google/callback"
+    google_oauth_redirect_uri: str = (
+        "http://localhost:8000/api/v1/oauth/google/callback"
+    )
 
     # Password reset settings
     password_reset_token_expire_minutes: int = 30
+    frontend_base_url: str = "http://localhost:3000"  # Frontend URL for reset links
 
     # Email settings (for password reset)
     smtp_host: str | None = None

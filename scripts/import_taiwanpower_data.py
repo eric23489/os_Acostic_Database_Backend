@@ -3,6 +3,8 @@ import sys
 import requests
 from datetime import datetime
 
+from sqlalchemy import Boolean, Column, Integer
+
 # 將專案根目錄加入 Python 路徑，確保可以匯入 app 模組
 sys.path.append(os.getcwd())
 
@@ -17,6 +19,7 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "aaa")
 def get_token():
     """登入並取得 Access Token"""
     url = f"{API_BASE_URL}/users/login"
+    response = None
     try:
         # OAuth2PasswordRequestForm 格式
         response = requests.post(
@@ -26,7 +29,7 @@ def get_token():
         return response.json()["access_token"]
     except requests.exceptions.RequestException as e:
         print(f"❌ 登入失敗: {e}")
-        if response.status_code == 401:
+        if response is not None and response.status_code == 401:
             print(
                 "   請確認 ADMIN_EMAIL 與 ADMIN_PASSWORD 是否正確，且 API 伺服器已啟動。"
             )
@@ -43,7 +46,6 @@ def import_data():
     try:
         # --- 1. 建立 Project ---
         project_name = "taiwanpower2nd"
-
         # 取得所有專案並檢查是否存在
         resp = requests.get(f"{API_BASE_URL}/projects/", headers=headers)
         resp.raise_for_status()
@@ -52,7 +54,20 @@ def import_data():
 
         if not project:
             print(f"➕ 建立專案: {project_name}")
-            payload = {"name": project_name, "description": "PacificOcean"}
+            payload = {
+                "name": project_name,
+                "name_zh": "台電二期",
+                "area": "East Taiwan",
+                "start_time": "2024-06-11T13:00:00",
+                "end_time": "2024-07-11T11:10:00",
+                "is_finished": True,
+                "owner": "TP",
+                "contractor": "PM",
+                "contact_name": "Alice",
+                "contact_phone": "0999999999",
+                "contact_email": "alice@taiwanpower.com",
+                "project_type": "wind-farm",
+            }
             resp = requests.post(
                 f"{API_BASE_URL}/projects/", json=payload, headers=headers
             )

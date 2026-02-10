@@ -135,8 +135,7 @@ class PasswordResetService:
         Returns:
             True if email sent successfully.
         """
-        base_url = settings.google_oauth_redirect_uri.rsplit("/", 3)[0]
-        reset_url = f"{base_url}/reset-password?token={reset_token}"
+        reset_url = f"{settings.frontend_base_url}/reset-password?token={reset_token}"
 
         # Check if SMTP is configured
         if settings.smtp_host and settings.smtp_user:

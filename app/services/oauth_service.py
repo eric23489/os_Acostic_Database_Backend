@@ -158,6 +158,12 @@ class OAuthService:
         )
 
         if existing_oauth_user:
+            # Check if account is deactivated
+            if not existing_oauth_user.is_active:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="This account has been deactivated",
+                )
             # Existing Google user - update last login
             existing_oauth_user.last_login_at = datetime.now(UTC)
             self.db.commit()
@@ -174,6 +180,12 @@ class OAuthService:
         )
 
         if existing_email_user:
+            # Check if account is deactivated
+            if not existing_email_user.is_active:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="This account has been deactivated",
+                )
             # Auto-link Google to existing local account
             existing_email_user.oauth_provider = "google"
             existing_email_user.oauth_sub = google_sub

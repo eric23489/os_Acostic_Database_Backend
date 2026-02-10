@@ -23,18 +23,15 @@ def forgot_password(
     """Initiate password reset.
 
     Sends a password reset email if the email exists and has a password.
-    For OAuth-only accounts, suggests using Google login instead.
-
-    For security, always returns success even if email doesn't exist.
+    For security, always returns generic message to prevent account enumeration.
     """
     service = PasswordResetService(db)
-    reset_token, has_password, has_google_oauth = service.initiate_password_reset(
+    reset_token, _has_password, _has_google_oauth = service.initiate_password_reset(
         request.email
     )
 
-    # Build response message
+    # Send reset email if token was generated
     if reset_token:
-        # User has password, send reset email
         service.send_reset_email(request.email, reset_token)
 
     # For security, always return a generic message and do not expose OAuth binding.
