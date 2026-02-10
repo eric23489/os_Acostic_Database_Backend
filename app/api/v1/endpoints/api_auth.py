@@ -37,20 +37,12 @@ def forgot_password(
         # User has password, send reset email
         service.send_reset_email(request.email, reset_token)
 
-        if has_google_oauth:
-            message = "Password reset email sent. You can also log in with Google."
-        else:
-            message = "If this email exists, a password reset link has been sent."
-    elif has_google_oauth:
-        # OAuth-only account
-        message = "This account uses Google login. Please use Google to sign in."
-    else:
-        # User not found or other case - return generic message
-        message = "If this email exists, a password reset link has been sent."
+    # For security, always return a generic message and do not expose OAuth binding.
+    message = "If this email exists, a password reset link has been sent."
 
     return ForgotPasswordResponse(
         message=message,
-        has_google_oauth=has_google_oauth,
+        has_google_oauth=False,
     )
 
 
