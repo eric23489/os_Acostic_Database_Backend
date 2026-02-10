@@ -107,6 +107,29 @@ def restore_audio(
     return AudioService(db).restore_audio(audio_id)
 
 
+@router.delete("/{audio_id}/permanent", response_model=dict)
+def hard_delete_audio(
+    audio_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """
+    永久刪除單一 Audio。
+
+    - 刪除 MinIO 物件
+    - 刪除資料庫記錄
+    - 釋放 object_key，可重新使用
+
+    需要 Admin 權限。
+    """
+    if current_user.role != UserRole.ADMIN.value:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin permission required for permanent deletion",
+        )
+    return AudioService(db).hard_delete_audio(audio_id)
+
+
 @router.post("/upload/presigned-url", response_model=PresignedUrlResponse)
 def generate_presigned_url(
     request: PresignedUrlRequest,

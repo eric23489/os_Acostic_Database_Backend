@@ -14,6 +14,12 @@ services:
     ports:
       - "${POSTGRES_PORT_OUT}:${POSTGRES_PORT}"
 
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   minio:
     image: minio/minio:latest
     container_name: os-acoustic-minio
@@ -55,8 +61,10 @@ services:
       - .env
     # 確保資料庫和 MinIO 啟動後才啟動 App
     depends_on:
-      - db
-      - minio
+      db:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
 
     # 重點 2：覆寫啟動指令
     # 我們在這裡加上 --reload 參數

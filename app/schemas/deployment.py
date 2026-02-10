@@ -11,8 +11,8 @@ class DeploymentBase(BaseModel):
     point_id: int
     recorder_id: int
     phase: Optional[int] = 1
-    start_time: Optional[datetime] = None
-    end_time: Optional[datetime] = None
+    report_start_time: Optional[datetime] = None
+    report_end_time: Optional[datetime] = None
     deploy_time: Optional[datetime] = None
     return_time: Optional[datetime] = None
     gps_lat_exe: Optional[float] = Field(None, ge=-90, le=90)
@@ -24,7 +24,9 @@ class DeploymentBase(BaseModel):
     status: Optional[str] = DeploymentStatus.UNDEPLOYED.value
     description: Optional[str] = None
 
-    @field_validator("start_time", "end_time", "deploy_time", "return_time")
+    @field_validator(
+        "report_start_time", "report_end_time", "deploy_time", "return_time"
+    )
     @classmethod
     def set_timezone(cls, v: Optional[datetime]) -> Optional[datetime]:
         if v is not None and v.tzinfo is None:
@@ -42,8 +44,8 @@ class DeploymentUpdate(BaseModel):
     point_id: Optional[int] = None
     recorder_id: Optional[int] = None
     phase: Optional[int] = None
-    start_time: Optional[datetime] = None
-    end_time: Optional[datetime] = None
+    report_start_time: Optional[datetime] = None
+    report_end_time: Optional[datetime] = None
     deploy_time: Optional[datetime] = None
     return_time: Optional[datetime] = None
     gps_lat_exe: Optional[float] = Field(None, ge=-90, le=90)
@@ -64,8 +66,8 @@ class DeploymentResponse(DeploymentBase):
     model_config = ConfigDict(from_attributes=True)
 
     @field_serializer(
-        "start_time",
-        "end_time",
+        "report_start_time",
+        "report_end_time",
         "deploy_time",
         "return_time",
         "created_at",

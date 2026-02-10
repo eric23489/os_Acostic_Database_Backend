@@ -100,3 +100,26 @@ def restore_project(
             detail="Only the deleter or admin can restore this resource",
         )
     return ProjectService(db).restore_project(project_id)
+
+
+@router.delete("/{project_id}/permanent", response_model=dict)
+def hard_delete_project(
+    project_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """
+    永久刪除 Project 及所有相關資料。
+
+    - 刪除 MinIO Bucket 和所有物件
+    - 刪除資料庫中的所有相關記錄
+    - 釋放名稱，可重新使用
+
+    需要 Admin 權限。
+    """
+    if current_user.role != UserRole.ADMIN.value:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin permission required for permanent deletion",
+        )
+    return ProjectService(db).hard_delete_project(project_id)

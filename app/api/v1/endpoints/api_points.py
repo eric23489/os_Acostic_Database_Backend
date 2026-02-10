@@ -98,3 +98,26 @@ def restore_point(
             detail="Only the deleter or admin can restore this resource",
         )
     return PointService(db).restore_point(point_id)
+
+
+@router.delete("/{point_id}/permanent", response_model=dict)
+def hard_delete_point(
+    point_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """
+    永久刪除 Point 及所有相關資料。
+
+    - 刪除 MinIO 中該 Point 下的所有物件
+    - 刪除資料庫中的所有相關記錄
+    - 釋放名稱，可重新使用
+
+    需要 Admin 權限。
+    """
+    if current_user.role != UserRole.ADMIN.value:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin permission required for permanent deletion",
+        )
+    return PointService(db).hard_delete_point(point_id)

@@ -82,3 +82,22 @@ def restore_recorder(
             detail="Only the deleter or admin can restore this resource",
         )
     return RecorderService(db).restore_recorder(recorder_id)
+
+
+@router.delete("/{recorder_id}/permanent", response_model=dict)
+def hard_delete_recorder(
+    recorder_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """
+    永久刪除 Recorder。需要 Admin 權限。
+
+    注意：如果有 Deployment 引用此 Recorder，將無法刪除。
+    """
+    if current_user.role != UserRole.ADMIN.value:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin permission required for permanent deletion",
+        )
+    return RecorderService(db).hard_delete_recorder(recorder_id)
