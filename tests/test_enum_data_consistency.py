@@ -7,8 +7,9 @@ Enum 資料一致性測試 - P2 (建議)
 3. 所有 Enum 值都是有效的 DB 字串
 """
 
-from app.enums.enums import DeploymentStatus, RecorderStatus, UserRole
+from app.enums.enums import DeploymentStatus, ProjectType, RecorderStatus, UserRole
 from app.schemas.deployment import DeploymentCreate, DeploymentResponse
+from app.schemas.project import ProjectCreate, ProjectResponse
 from app.schemas.recorder import RecorderCreate, RecorderResponse
 from app.schemas.user import UserCreate, UserResponse
 
@@ -208,6 +209,7 @@ class TestEnumCompleteness:
             "success",
             "water-intrusion",
             "lost",
+            "found",
         }
         actual_values = {status.value for status in DeploymentStatus}
         assert actual_values == expected_values
@@ -234,8 +236,8 @@ class TestEnumCompleteness:
         assert actual_values == expected_values
 
     def test_deployment_status_count(self):
-        """DeploymentStatus 有 5 個狀態。"""
-        assert len(DeploymentStatus) == 5
+        """DeploymentStatus 有 6 個狀態。"""
+        assert len(DeploymentStatus) == 6
 
     def test_recorder_status_count(self):
         """RecorderStatus 有 8 個狀態。"""
@@ -323,3 +325,54 @@ class TestEnumSerializationConsistency:
 
         assert restored.status == original.status
         assert restored.status == DeploymentStatus.SUCCESS.value
+
+
+# =============================================================================
+# ProjectType 一致性測試
+# =============================================================================
+
+
+class TestProjectTypeConsistency:
+    """測試 ProjectType Enum 一致性。"""
+
+    def test_project_type_has_expected_values(self):
+        """ProjectType 包含所有預期的類型。"""
+        expected_values = {"wind-farm"}
+        actual_values = {pt.value for pt in ProjectType}
+        assert actual_values == expected_values
+
+    def test_project_type_count(self):
+        """ProjectType 有 1 個類型。"""
+        assert len(ProjectType) == 1
+
+    def test_project_type_values_are_lowercase(self):
+        """ProjectType 值都是小寫。"""
+        for pt in ProjectType:
+            assert pt.value == pt.value.lower(), (
+                f"ProjectType.{pt.name} value '{pt.value}' is not lowercase"
+            )
+
+    def test_project_type_values_fit_db_column(self):
+        """所有 ProjectType 值都不超過 DB String(50) 限制。"""
+        max_length = 50
+        for pt in ProjectType:
+            assert len(pt.value) <= max_length, (
+                f"ProjectType.{pt.name} value '{pt.value}' exceeds {max_length} chars"
+            )
+
+    def test_project_type_enum_values_match_schema_options(self):
+        """ProjectType Enum 所有值都能被 Schema 接受。"""
+        for pt in ProjectType:
+            project = ProjectCreate(name="test-project", project_type=pt.value)
+            assert project.project_type == pt
+
+    def test_project_response_serializes_all_types_consistently(self):
+        """ProjectResponse 對所有 project_type 值序列化一致。"""
+        for pt in ProjectType:
+            response = ProjectResponse(id=1, name="test-project", project_type=pt)
+            data_dict = response.model_dump()
+            assert data_dict["project_type"] == pt.value
+
+            data_json = response.model_dump(mode="json")
+            assert data_json["project_type"] == pt.value
+            assert isinstance(data_json["project_type"], str)

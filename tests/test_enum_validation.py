@@ -10,12 +10,13 @@ Enum 輸入驗證測試 - P0 (必須)
 import pytest
 from pydantic import ValidationError
 
-from app.enums.enums import DeploymentStatus, RecorderStatus, UserRole
+from app.enums.enums import DeploymentStatus, ProjectType, RecorderStatus, UserRole
 from app.schemas.deployment import (
     DeploymentCreate,
     DeploymentResponse,
     DeploymentUpdate,
 )
+from app.schemas.project import ProjectCreate, ProjectResponse
 from app.schemas.recorder import RecorderCreate, RecorderResponse, RecorderUpdate
 from app.schemas.user import UserCreate, UserResponse, UserUpdate
 
@@ -45,6 +46,7 @@ class TestDeploymentStatusValidation:
             "success",
             "water-intrusion",
             "lost",
+            "found",
         ]
         for value in valid_values:
             deployment = DeploymentCreate(
@@ -355,3 +357,36 @@ class TestEnumResponseSerialization:
             data = response.model_dump(mode="json")
             assert data["role"] == role.value
             assert isinstance(data["role"], str)
+
+
+# =============================================================================
+# ProjectType 驗證測試
+# =============================================================================
+
+
+class TestProjectTypeValidation:
+    """測試 ProjectType Enum 驗證。"""
+
+    def test_project_type_all_valid_values(self):
+        """驗證所有有效 ProjectType 值都能通過。"""
+        for project_type in ProjectType:
+            project = ProjectCreate(name="test-project", project_type=project_type)
+            assert project.project_type == project_type
+
+    def test_project_type_invalid_string(self):
+        """無效字串觸發 ValidationError。"""
+        with pytest.raises(ValidationError):
+            ProjectCreate(name="test-project", project_type="invalid-type")
+
+    def test_project_type_none_allowed(self):
+        """ProjectCreate 允許 project_type 為 None。"""
+        project = ProjectCreate(name="test-project")
+        assert project.project_type is None
+
+    def test_project_response_serializes_enum_to_string(self):
+        """ProjectResponse 序列化 Enum 為字串。"""
+        response = ProjectResponse(
+            id=1, name="test-project", project_type=ProjectType.WIND_FARM
+        )
+        data = response.model_dump(mode="json")
+        assert data["project_type"] == "wind-farm"

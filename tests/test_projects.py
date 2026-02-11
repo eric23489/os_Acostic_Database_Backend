@@ -7,7 +7,7 @@ def test_get_projects(client):
     with patch("app.api.v1.endpoints.api_projects.ProjectService") as MockService:
         mock_service = MockService.return_value
         mock_service.get_projects.return_value = [
-            ProjectResponse(id=1, name="Project-A", area="Area A")
+            ProjectResponse(id=1, name="Project-A", area="Area A", project_type=None)
         ]
 
         response = client.get(f"{settings.api_prefix}/projects/")
@@ -21,7 +21,7 @@ def test_get_project(client):
     with patch("app.api.v1.endpoints.api_projects.ProjectService") as MockService:
         mock_service = MockService.return_value
         mock_service.get_project.return_value = ProjectResponse(
-            id=1, name="project-a", area="Area A"
+            id=1, name="project-a", area="Area A", project_type=None
         )
 
         response = client.get(f"{settings.api_prefix}/projects/1")
@@ -34,7 +34,7 @@ def test_create_project(client):
     with patch("app.api.v1.endpoints.api_projects.ProjectService") as MockService:
         mock_service = MockService.return_value
         mock_service.create_project.return_value = ProjectResponse(
-            id=1, name="new-project", area="New Area"
+            id=1, name="new-project", area="New Area", project_type=None
         )
 
         response = client.post(
@@ -51,7 +51,7 @@ def test_update_project(client):
     with patch("app.api.v1.endpoints.api_projects.ProjectService") as MockService:
         mock_service = MockService.return_value
         mock_service.update_project.return_value = ProjectResponse(
-            id=1, name="updated-project", area="Area A"
+            id=1, name="updated-project", area="Area A", project_type=None
         )
 
         response = client.put(

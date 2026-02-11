@@ -3,6 +3,8 @@ from typing import Optional
 from datetime import datetime, timezone, timedelta
 from pydantic import BaseModel, ConfigDict, field_validator, field_serializer
 
+from app.enums.enums import ProjectType
+
 
 class ProjectBase(BaseModel):
     name: Optional[str] = None
@@ -17,7 +19,7 @@ class ProjectBase(BaseModel):
     contact_name: Optional[str] = None
     contact_phone: Optional[str] = None
     contact_email: Optional[str] = None
-    project_type: Optional[str] = None
+    project_type: ProjectType | None = None
 
     @field_validator("name")
     @classmethod
@@ -69,7 +71,7 @@ class ProjectUpdate(BaseModel):
     contact_name: Optional[str] = None
     contact_phone: Optional[str] = None
     contact_email: Optional[str] = None
-    project_type: Optional[str] = None
+    project_type: ProjectType | None = None
 
 
 class ProjectResponse(ProjectBase):
@@ -85,3 +87,9 @@ class ProjectResponse(ProjectBase):
         if dt is None:
             return None
         return dt.astimezone(timezone(timedelta(hours=8)))
+
+    @field_serializer("project_type")
+    def serialize_project_type(self, pt: ProjectType | None, _info):
+        if pt is None:
+            return None
+        return pt.value

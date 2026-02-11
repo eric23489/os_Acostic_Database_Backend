@@ -13,6 +13,7 @@ class DeploymentStatus(StrEnum):
     SUCCESS = "success"
     WATER_INTRUSION = "water-intrusion"
     LOST = "lost"
+    FOUND = "found"
 
 
 class RecorderStatus(StrEnum):

@@ -459,3 +459,158 @@ class TestEnumValidation422Structure:
         assert response.status_code == 422
         error_item = response.json()["detail"][0]
         assert "status" in error_item["loc"]
+
+
+# =============================================================================
+# Project API Enum 驗證測試
+# =============================================================================
+
+
+class TestProjectApiEnumValidation:
+    """測試 Project API 的 ProjectType Enum 驗證。"""
+
+    def test_create_project_invalid_project_type_returns_422(self, client):
+        """POST 無效 project_type 回傳 422。"""
+        response = client.post(
+            f"{settings.api_prefix}/projects/",
+            json={
+                "name": "test-project",
+                "project_type": "invalid-type",
+            },
+        )
+        assert response.status_code == 422
+
+    def test_create_project_422_contains_project_type_error(self, client):
+        """422 錯誤包含 project_type 欄位的驗證訊息。"""
+        response = client.post(
+            f"{settings.api_prefix}/projects/",
+            json={
+                "name": "test-project",
+                "project_type": "wrong-value",
+            },
+        )
+        assert response.status_code == 422
+        error_detail = response.json()["detail"]
+        project_type_errors = [
+            e for e in error_detail if "project_type" in str(e.get("loc", []))
+        ]
+        assert len(project_type_errors) > 0
+
+    def test_create_project_422_lists_valid_options(self, client):
+        """422 錯誤訊息列出所有允許值。"""
+        response = client.post(
+            f"{settings.api_prefix}/projects/",
+            json={
+                "name": "test-project",
+                "project_type": "invalid",
+            },
+        )
+        assert response.status_code == 422
+        error_msg = str(response.json()["detail"])
+        assert "wind-farm" in error_msg
+
+    def test_create_project_valid_project_type_accepted(self, client):
+        """POST 有效 project_type 被接受。"""
+        with patch(
+            "app.api.v1.endpoints.api_projects.ProjectService"
+        ) as mock_service_class:
+            mock_service = mock_service_class.return_value
+            mock_project = MagicMock()
+            mock_project.id = 1
+            mock_project.name = "test-project"
+            mock_project.name_zh = None
+            mock_project.area = None
+            mock_project.description = None
+            mock_project.start_time = None
+            mock_project.end_time = None
+            mock_project.is_finished = False
+            mock_project.owner = None
+            mock_project.contractor = None
+            mock_project.contact_name = None
+            mock_project.contact_phone = None
+            mock_project.contact_email = None
+            mock_project.project_type = "wind-farm"
+            mock_project.created_at = datetime.now(UTC)
+            mock_project.updated_at = datetime.now(UTC)
+            mock_service.create_project.return_value = mock_project
+
+            response = client.post(
+                f"{settings.api_prefix}/projects/",
+                json={
+                    "name": "test-project",
+                    "project_type": "wind-farm",
+                },
+            )
+            assert response.status_code == 200
+            assert response.json()["project_type"] == "wind-farm"
+
+    def test_create_project_null_project_type_accepted(self, client):
+        """POST project_type 為 null 被接受。"""
+        with patch(
+            "app.api.v1.endpoints.api_projects.ProjectService"
+        ) as mock_service_class:
+            mock_service = mock_service_class.return_value
+            mock_project = MagicMock()
+            mock_project.id = 1
+            mock_project.name = "test-project"
+            mock_project.name_zh = None
+            mock_project.area = None
+            mock_project.description = None
+            mock_project.start_time = None
+            mock_project.end_time = None
+            mock_project.is_finished = False
+            mock_project.owner = None
+            mock_project.contractor = None
+            mock_project.contact_name = None
+            mock_project.contact_phone = None
+            mock_project.contact_email = None
+            mock_project.project_type = None
+            mock_project.created_at = datetime.now(UTC)
+            mock_project.updated_at = datetime.now(UTC)
+            mock_service.create_project.return_value = mock_project
+
+            response = client.post(
+                f"{settings.api_prefix}/projects/",
+                json={"name": "test-project"},
+            )
+            assert response.status_code == 200
+            assert response.json()["project_type"] is None
+
+    def test_update_project_invalid_project_type_returns_422(self, client):
+        """PUT 無效 project_type 回傳 422。"""
+        response = client.put(
+            f"{settings.api_prefix}/projects/1",
+            json={"project_type": "not-valid"},
+        )
+        assert response.status_code == 422
+
+    def test_get_project_response_contains_string_project_type(self, client):
+        """GET 回應包含字串格式的 project_type。"""
+        with patch(
+            "app.api.v1.endpoints.api_projects.ProjectService"
+        ) as mock_service_class:
+            mock_service = mock_service_class.return_value
+            mock_project = MagicMock()
+            mock_project.id = 1
+            mock_project.name = "test-project"
+            mock_project.name_zh = None
+            mock_project.area = None
+            mock_project.description = None
+            mock_project.start_time = None
+            mock_project.end_time = None
+            mock_project.is_finished = False
+            mock_project.owner = None
+            mock_project.contractor = None
+            mock_project.contact_name = None
+            mock_project.contact_phone = None
+            mock_project.contact_email = None
+            mock_project.project_type = "wind-farm"
+            mock_project.created_at = datetime.now(UTC)
+            mock_project.updated_at = datetime.now(UTC)
+            mock_service.get_project.return_value = mock_project
+
+            response = client.get(f"{settings.api_prefix}/projects/1")
+            assert response.status_code == 200
+            data = response.json()
+            assert data["project_type"] == "wind-farm"
+            assert isinstance(data["project_type"], str)
