@@ -42,10 +42,3 @@ def client(mock_db, mock_current_user):
     app.dependency_overrides.clear()
 
 
-@pytest.fixture
-def mock_s3_client():
-    """Mock the S3 client for all tests."""
-    with patch("app.api.v1.endpoints.api_audio.get_s3_client") as mock_get_s3:
-        mock_client = MagicMock()
-        mock_get_s3.return_value = mock_client
-        yield mock_client

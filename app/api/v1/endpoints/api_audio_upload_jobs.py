@@ -1,17 +1,10 @@
 """Audio Upload Jobs API endpoints."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_user
-from app.core.minio import get_s3_client
 from app.db.session import get_db
-from app.schemas.audio import (
-    PresignedUrlBatchRequest,
-    PresignedUrlBatchResponse,
-    PresignedUrlRequest,
-    PresignedUrlResponse,
-)
 from app.schemas.upload_job import (
     MultipartCompleteRequest,
     MultipartInitResponse,
@@ -25,81 +18,8 @@ from app.schemas.upload_job import (
     UploadJobStatusResponse,
 )
 from app.services.upload_job_service import UploadJobService
-from app.utils.path_utils import parse_filename_and_generate_key
 
 router = APIRouter(prefix="/audio-upload-jobs", tags=["audio-upload-jobs"])
-
-
-# =============================================================================
-# Simple Presigned URL (Single File Upload)
-# =============================================================================
-
-
-@router.post("/presigned-url", response_model=PresignedUrlResponse)
-def generate_presigned_url(
-    request: PresignedUrlRequest,
-    current_user=Depends(get_current_user),
-):
-    """
-    Generate a presigned URL for uploading a single audio file to MinIO.
-
-    For batch uploads, use POST /audio-upload-jobs/ instead.
-    """
-    s3_client = get_s3_client()
-    bucket_name = request.project_name
-    object_name = parse_filename_and_generate_key(request.point_name, request.filename)
-
-    try:
-        url = s3_client.generate_presigned_url(
-            ClientMethod="put_object",
-            Params={"Bucket": bucket_name, "Key": object_name},
-            ExpiresIn=3600,
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to generate presigned URL: {str(e)}"
-        )
-
-    return PresignedUrlResponse(presigned_url=url, bucket=bucket_name, key=object_name)
-
-
-@router.post("/presigned-urls", response_model=list[PresignedUrlBatchResponse])
-def generate_presigned_urls(
-    request: PresignedUrlBatchRequest,
-    current_user=Depends(get_current_user),
-):
-    """
-    Generate multiple presigned URLs for uploading audio files to MinIO.
-
-    For large files (>100MB), use POST /audio-upload-jobs/ with multipart upload instead.
-    """
-    s3_client = get_s3_client()
-    bucket_name = request.project_name
-    responses = []
-
-    for filename in request.filenames:
-        object_name = parse_filename_and_generate_key(request.point_name, filename)
-        try:
-            url = s3_client.generate_presigned_url(
-                ClientMethod="put_object",
-                Params={"Bucket": bucket_name, "Key": object_name},
-                ExpiresIn=3600,
-            )
-            responses.append(
-                PresignedUrlBatchResponse(
-                    filename=filename,
-                    presigned_url=url,
-                    bucket=bucket_name,
-                    key=object_name,
-                )
-            )
-        except Exception as e:
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to generate presigned URL for {filename}: {str(e)}",
-            )
-
-    return responses
 
 
 # =============================================================================
