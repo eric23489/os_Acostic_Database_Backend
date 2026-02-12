@@ -37,10 +37,6 @@
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### 預估時間
-- 單檔上傳: ~2 分鐘 @ 10MB/s
-- 並行 5 個: 800 ÷ 5 × 2 = **~5.3 小時**
-
 ### 上傳架構
 ```
 前端 ──presigned URL請求──→ 後端 (FastAPI)
@@ -60,6 +56,197 @@
 ### 關閉網頁處理
 - **Phase 1**: 關閉會中斷上傳
 - **Phase 2 (可選)**: 前端斷點續傳 (localStorage 記錄已完成檔案)
+
+---
+
+## 前端與後端溝通流程
+
+### 完整上傳流程時序圖
+
+```
+┌─────────┐          ┌─────────┐          ┌─────────┐
+│  前端   │          │  後端   │          │  MinIO  │
+└────┬────┘          └────┬────┘          └────┬────┘
+     │                    │                    │
+     │ 1. POST /audio-upload-jobs/             │
+     │    {deployment_id, files: [...]}        │
+     │ ──────────────────>│                    │
+     │                    │                    │
+     │    {job_id, tasks: [{task_id, audio_id, object_key}, ...]}
+     │ <──────────────────│                    │
+     │                    │                    │
+     │ ═══════════════════════════════════════════════════════
+     │        對每個檔案重複以下步驟 (並行 3-5 個)
+     │ ═══════════════════════════════════════════════════════
+     │                    │                    │
+     │ 2. POST /{job_id}/tasks/{task_id}/multipart/init
+     │ ──────────────────>│                    │
+     │                    │ create_multipart_upload
+     │                    │ ──────────────────>│
+     │                    │ <──────────────────│
+     │    {upload_id, total_parts, part_size}  │
+     │ <──────────────────│                    │
+     │                    │                    │
+     │ 3. POST /{job_id}/tasks/{task_id}/multipart/urls
+     │    {part_numbers: [1,2,3,4,5]}          │
+     │ ──────────────────>│                    │
+     │                    │ generate_presigned_url (per part)
+     │                    │ ──────────────────>│
+     │    {parts: [{part_number, presigned_url}, ...]}
+     │ <──────────────────│                    │
+     │                    │                    │
+     │ ═══════════════════════════════════════════════════════
+     │        對每個 Part 重複以下步驟
+     │ ═══════════════════════════════════════════════════════
+     │                    │                    │
+     │ 4. PUT presigned_url (上傳 Part)        │
+     │ ───────────────────────────────────────>│
+     │    (Response Header: ETag)              │
+     │ <───────────────────────────────────────│
+     │                    │                    │
+     │ 5. POST /{job_id}/tasks/{task_id}/multipart/part-complete
+     │    {part_number, etag}                  │
+     │ ──────────────────>│                    │
+     │    {"status": "ok"}│                    │
+     │ <──────────────────│                    │
+     │                    │                    │
+     │ ═══════════════════════════════════════════════════════
+     │        所有 Parts 完成後
+     │ ═══════════════════════════════════════════════════════
+     │                    │                    │
+     │ 6. POST /{job_id}/tasks/{task_id}/multipart/complete
+     │    {parts: [{part_number, etag}, ...]}  │
+     │ ──────────────────>│                    │
+     │                    │ complete_multipart_upload
+     │                    │ ──────────────────>│
+     │                    │ <──────────────────│
+     │    {"status": "ok"}│                    │
+     │ <──────────────────│                    │
+     │                    │                    │
+     │ ═══════════════════════════════════════════════════════
+     │        (可選) 查詢進度 / 斷點續傳
+     │ ═══════════════════════════════════════════════════════
+     │                    │                    │
+     │ 7. GET /{job_id}   │                    │
+     │ ──────────────────>│                    │
+     │    {job_id, status, progress, tasks}    │
+     │ <──────────────────│                    │
+     │                    │                    │
+     │ 8. GET /{job_id}/tasks/{task_id}/progress
+     │ ──────────────────>│                    │
+     │    {completed_parts, remaining_parts}   │
+     │ <──────────────────│                    │
+     │                    │                    │
+```
+
+### API Endpoints 摘要
+
+| 步驟 | Method | Endpoint | 用途 |
+|------|--------|----------|------|
+| 1 | POST | `/audio-upload-jobs/` | 建立上傳任務，預建 AudioInfo |
+| 2 | POST | `/{job_id}/tasks/{task_id}/multipart/init` | 初始化 Multipart Upload |
+| 3 | POST | `/{job_id}/tasks/{task_id}/multipart/urls` | 取得 Part Presigned URLs |
+| 4 | PUT | `{presigned_url}` (直接傳 MinIO) | 上傳單一 Part |
+| 5 | POST | `/{job_id}/tasks/{task_id}/multipart/part-complete` | 回報 Part 完成 |
+| 6 | POST | `/{job_id}/tasks/{task_id}/multipart/complete` | 完成整個檔案上傳 |
+| 7 | GET | `/{job_id}` | 查詢任務進度 |
+| 8 | GET | `/{job_id}/tasks/{task_id}/progress` | 查詢單檔進度 (斷點續傳) |
+
+### Request/Response 範例
+
+#### Step 1: 建立上傳任務
+```json
+// POST /api/v1/audio-upload-jobs/
+// Request
+{
+  "deployment_id": 123,
+  "priority": 5,
+  "files": [
+    {"name": "7505.240611130000.wav", "size": 1386217472},
+    {"name": "7505.240611140000.wav", "size": 1386217472}
+  ]
+}
+
+// Response (201 Created)
+{
+  "job_id": "job_abc123",
+  "deployment_id": 123,
+  "status": "pending",
+  "total_files": 2,
+  "tasks": [
+    {
+      "task_id": "task_001",
+      "audio_id": 456,
+      "file_name": "7505.240611130000.wav",
+      "object_key": "PointA/2024/06/Raw_Data/7505.240611130000.wav"
+    },
+    {
+      "task_id": "task_002",
+      "audio_id": 457,
+      "file_name": "7505.240611140000.wav",
+      "object_key": "PointA/2024/06/Raw_Data/7505.240611140000.wav"
+    }
+  ]
+}
+```
+
+#### Step 2: 初始化 Multipart Upload
+```json
+// POST /api/v1/audio-upload-jobs/{job_id}/tasks/{task_id}/multipart/init
+// Response
+{
+  "upload_id": "minio_upload_xyz789",
+  "total_parts": 14,
+  "part_size": 104857600  // 100MB
+}
+```
+
+#### Step 3: 取得 Part URLs
+```json
+// POST /api/v1/audio-upload-jobs/{job_id}/tasks/{task_id}/multipart/urls
+// Request
+{
+  "part_numbers": [1, 2, 3, 4, 5]
+}
+
+// Response
+{
+  "parts": [
+    {"part_number": 1, "presigned_url": "https://minio/...?partNumber=1&..."},
+    {"part_number": 2, "presigned_url": "https://minio/...?partNumber=2&..."},
+    ...
+  ]
+}
+```
+
+#### Step 5: 回報 Part 完成
+```json
+// POST /api/v1/audio-upload-jobs/{job_id}/tasks/{task_id}/multipart/part-complete
+// Request
+{
+  "part_number": 1,
+  "etag": "\"d41d8cd98f00b204e9800998ecf8427e\""
+}
+
+// Response
+{"status": "ok"}
+```
+
+#### Step 6: 完成上傳
+```json
+// POST /api/v1/audio-upload-jobs/{job_id}/tasks/{task_id}/multipart/complete
+// Request
+{
+  "parts": [
+    {"part_number": 1, "etag": "\"abc...\""},
+    {"part_number": 2, "etag": "\"def...\""},
+    ...
+  ]
+}
+
+// Response
+{"status": "ok"}
+```
 
 ---
 
@@ -275,25 +462,6 @@ def create_audios_batch(
      -H "Authorization: Bearer $TOKEN" \
      -d '{"deployment_id": 1, "audios": [...]}'
    ```
-
----
-
-## 預估時間
-
-| 步驟 | 時間 |
-|------|------|
-| **Phase 1: Batch API** | |
-| Schema (Batch) | 15 分鐘 |
-| Service 輔助方法 | 15 分鐘 |
-| Service 主方法 | 25 分鐘 |
-| API Endpoint (batch) | 10 分鐘 |
-| 測試 (18 案例) | 45 分鐘 |
-| **Phase 2: Multipart Upload** | |
-| Schema (Multipart) | 15 分鐘 |
-| API Endpoints (4 個) | 30 分鐘 |
-| 測試 (12 案例) | 30 分鐘 |
-| **整合測試 + Ruff** | 15 分鐘 |
-| **總計** | **~3.5 小時** |
 
 ---
 
