@@ -100,13 +100,18 @@ def import_data():
                 # 對應下方 rec_name = f"{item['model']}-{item['serial']}"
                 recorder_map[f"{r['model']}-{r['sn']}"] = r
 
-        # (名稱, 經度, 緯度, 水深, 布放時間, 回收時間, 儀器型號, 儀器序號, 靈敏度)
+        # Point: 計畫座標, Deployment: 實際執行座標
         site_data = [
             {
                 "name": "TPC1",
-                "lon_str": "120°20.360' E",
-                "lat_str": "24°5.500' N",
-                "depth_str": "14.6 m",
+                # Point (計畫)
+                "lon_plan": "120°20.360' E",
+                "lat_plan": "24°5.500' N",
+                "depth_plan": "14.6 m",
+                # Deployment (實際)
+                "lon_exe": "120° 20.337' E",
+                "lat_exe": "24° 05.539' N",
+                "depth_exe": "13.4 m",
                 "deploy_str": "2024/6/13 06:13:00",
                 "return_str": "2024/6/29 07:03:00",
                 "model": "ST600",
@@ -115,9 +120,14 @@ def import_data():
             },
             {
                 "name": "TPC2",
-                "lon_str": "120° 15.954'E",
-                "lat_str": "24°5.951’N",
-                "depth_str": "46.7 m",
+                # Point (計畫)
+                "lon_plan": "120° 15.954'E",
+                "lat_plan": "24°5.951'N",
+                "depth_plan": "46.7 m",
+                # Deployment (實際)
+                "lon_exe": "120° 16.506' E",
+                "lat_exe": "24° 05.750' N",
+                "depth_exe": "46.5 m",
                 "deploy_str": "2024/6/13 06:46:00",
                 "return_str": "2024/6/29 07:39:00",
                 "model": "ST600",
@@ -126,9 +136,14 @@ def import_data():
             },
             {
                 "name": "TPC3",
-                "lon_str": "120°15.477' E",
-                "lat_str": "24°3.341' N",
-                "depth_str": "41.9 m",
+                # Point (計畫)
+                "lon_plan": "120°15.477' E",
+                "lat_plan": "24°3.341' N",
+                "depth_plan": "41.9 m",
+                # Deployment (實際)
+                "lon_exe": "120° 15.488' E",
+                "lat_exe": "24° 03.346' N",
+                "depth_exe": "42.2 m",
                 "deploy_str": "2024/6/13 08:27:00",
                 "return_str": "2024/6/29 09:30:00",
                 "model": "ST600",
@@ -137,9 +152,14 @@ def import_data():
             },
             {
                 "name": "TPC4",
-                "lon_str": "120°12.775' E",
-                "lat_str": "24°5.856' N",
-                "depth_str": "41.8 m",
+                # Point (計畫)
+                "lon_plan": "120°12.775' E",
+                "lat_plan": "24°5.856' N",
+                "depth_plan": "41.8 m",
+                # Deployment (實際)
+                "lon_exe": "120° 12.774' E",
+                "lat_exe": "24° 05.865' N",
+                "depth_exe": "42.7 m",
                 "deploy_str": "2024/6/13 07:18:00",
                 "return_str": "2024/6/29 08:14:00",
                 "model": "ST600",
@@ -148,9 +168,14 @@ def import_data():
             },
             {
                 "name": "TPC5",
-                "lon_str": "120°10.885' E",
-                "lat_str": "24°3.696' N",
-                "depth_str": "40.9 m",
+                # Point (計畫)
+                "lon_plan": "120°10.885' E",
+                "lat_plan": "24°3.696' N",
+                "depth_plan": "40.9 m",
+                # Deployment (實際)
+                "lon_exe": "120° 10.879' E",
+                "lat_exe": "24° 03.694' N",
+                "depth_exe": "39.5 m",
                 "deploy_str": "2024/6/13 07:47:00",
                 "return_str": "2024/6/29 08:49:00",
                 "model": "ST600",
@@ -170,9 +195,14 @@ def import_data():
         # --- 迴圈匯入 Point 與 Deployment ---
         for item in site_data:
             name = item["name"]
-            lon = dms_to_dd(item["lon_str"])
-            lat = dms_to_dd(item["lat_str"])
-            depth = float(item["depth_str"].replace("m", "").strip())
+            # Point 計畫座標
+            lon_plan = dms_to_dd(item["lon_plan"])
+            lat_plan = dms_to_dd(item["lat_plan"])
+            depth_plan = float(item["depth_plan"].replace("m", "").strip())
+            # Deployment 實際座標
+            lon_exe = dms_to_dd(item["lon_exe"])
+            lat_exe = dms_to_dd(item["lat_exe"])
+            depth_exe = float(item["depth_exe"].replace("m", "").strip())
 
             # 處理 Recorder
             rec_name = f"{item['model']}-{item['serial']}"
@@ -209,9 +239,9 @@ def import_data():
             point_payload = {
                 "name": name,
                 "project_id": project_id,
-                "gps_lat_plan": lat,
-                "gps_lon_plan": lon,
-                "depth_plan": depth,
+                "gps_lat_plan": lat_plan,
+                "gps_lon_plan": lon_plan,
+                "depth_plan": depth_plan,
             }
 
             if not point:
@@ -258,13 +288,15 @@ def import_data():
                     "point_id": point["id"],
                     "recorder_id": recorder_id,
                     "phase": 1,
-                    "gps_lat_exe": lat,
-                    "gps_lon_exe": lon,
-                    "depth_exe": depth,
+                    "gps_lat_exe": lat_exe,
+                    "gps_lon_exe": lon_exe,
+                    "depth_exe": depth_exe,
                     "deploy_time": deploy_dt.isoformat(),
                     "return_time": return_dt.isoformat(),
+                    "fs": 384000,
+                    "gain": 0,
                     "sensitivity": item["sensitivity"],
-                    "status": "finished",
+                    "status": "success",
                 }
                 try:
                     resp = requests.post(

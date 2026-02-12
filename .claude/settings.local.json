@@ -39,7 +39,9 @@
       "Bash(GIT_EDITOR=true git rebase:*)",
       "Bash(alembic revision:*)",
       "Bash(alembic heads:*)",
-      "Bash(cd:*)"
+      "Bash(cd:*)",
+      "Bash(gh run view:*)",
+      "Bash(python -c:*)"
     ]
   }
 }
