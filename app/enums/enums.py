@@ -51,3 +51,33 @@ class CetaceanCallType(IntEnum):
 
 class ProjectType(StrEnum):
     WIND_FARM = "wind-farm"
+
+
+class UploadStatus(StrEnum):
+    """AudioInfo 上传状态。"""
+
+    PENDING = "pending"  # 已建立，等待上传
+    UPLOADING = "uploading"  # 上传中 (有 parts 进度)
+    COMPLETED = "completed"  # 上传完成
+    FAILED = "failed"  # 上传失败
+
+
+class JobStatus(StrEnum):
+    """上传任务状态。"""
+
+    PENDING = "pending"
+    PROCESSING = "processing"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
+class TaskStatus(StrEnum):
+    """上传子任务状态。"""
+
+    PENDING = "pending"  # 等待上传
+    MULTIPART_INIT = "multipart-init"  # 已初始化分段上传
+    UPLOADING = "uploading"  # 上传中 (有 parts 进度)
+    UPLOADED = "uploaded"  # 已上传到 MinIO
+    COMPLETED = "completed"  # 完成 (AudioInfo 已更新)
+    FAILED = "failed"  # 失败

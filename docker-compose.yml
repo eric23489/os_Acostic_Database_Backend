@@ -20,6 +20,19 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:7-alpine
+    container_name: os-acoustic-redis
+    ports:
+      - "${REDIS_PORT_OUT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   minio:
     image: minio/minio:latest
     container_name: os-acoustic-minio
@@ -72,6 +85,38 @@ services:
     command: >
       sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${APP_PORT} --reload"
 
+  celery-worker:
+    build: .
+    container_name: os-acoustic-celery-worker
+    command: celery -A app.core.celery_app worker --loglevel=info --concurrency=4
+    volumes:
+      - ./app:/app/app
+    env_file:
+      - .env
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      redis:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+
+  celery-beat:
+    build: .
+    container_name: os-acoustic-celery-beat
+    command: celery -A app.core.celery_app beat --loglevel=info
+    volumes:
+      - ./app:/app/app
+    env_file:
+      - .env
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      redis:
+        condition: service_healthy
+
   # adminer:
   #   image: adminer
   #   restart: always
@@ -80,3 +125,4 @@ services:
 
 volumes:
   minio_data:
+  redis_data:

@@ -15,6 +15,7 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from app.db.base import Base
+from app.enums.enums import UploadStatus
 
 
 class AudioInfo(Base):
@@ -41,11 +42,20 @@ class AudioInfo(Base):
     updated_at = Column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
     is_deleted = Column(
         Boolean, default=False, nullable=False, server_default=text("false")
     )
     deleted_at = Column(DateTime(timezone=True), nullable=True)
     deleted_by = Column(Integer, nullable=True)
+
+    # Upload status tracking
+    upload_status = Column(
+        String(20), default=UploadStatus.COMPLETED, server_default="completed"
+    )
+    upload_id = Column(String(100), nullable=True)  # Multipart upload_id
+    upload_progress = Column(Integer, default=0)  # 已完成的 parts 数
+    upload_total_parts = Column(Integer, nullable=True)  # 总 parts 数
 
     __table_args__ = (
         Index(

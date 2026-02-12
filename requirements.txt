@@ -16,3 +16,5 @@ pre-commit
 requests
 google-auth
 google-auth-oauthlib
+celery[redis]
+redis

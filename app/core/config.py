@@ -55,6 +55,10 @@ class Settings(BaseSettings):
     smtp_password: str | None = None
     smtp_from_email: str | None = None
 
+    # Celery settings
+    celery_broker_url: str = "redis://redis:6379/0"
+    celery_result_backend: str = "redis://redis:6379/0"
+
     def get_database_url(self) -> str:
         return f"postgresql://{self.postgres_user}:{self.postgres_password}@{self.postgres_ip_address}:{self.postgres_port}/{self.postgres_db}"
 

@@ -8,6 +8,7 @@ from app.api.v1.endpoints import (
     api_points,
     api_projects,
     api_recorders,
+    api_upload_jobs,
     api_users,
 )
 
@@ -20,3 +21,4 @@ api_router.include_router(api_deployments.router)
 api_router.include_router(api_audio.router)
 api_router.include_router(api_oauth.router)
 api_router.include_router(api_auth.router)
+api_router.include_router(api_upload_jobs.router)
