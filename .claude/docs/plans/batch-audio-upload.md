@@ -2003,3 +2003,491 @@ docker exec os-acoustic-backend python -m pytest tests/integration/test_audio_up
 
 # 測試結果: 4 passed
 ```
+
+---
+
+## 前端 Schema 參考
+
+### 上傳流程 Schema
+
+#### 1. 建立上傳任務
+
+**Request: `POST /api/v1/audio-upload-jobs/`**
+```typescript
+interface FileInfo {
+  name: string;      // 檔名格式: "7505.240611130000.wav"
+  size?: number;     // 檔案大小 (bytes)
+  checksum?: string; // MD5/SHA256 (選填)
+}
+
+interface UploadJobCreateRequest {
+  deployment_id: number;
+  priority?: number;       // 0=高, 9=低, 預設 5
+  files: FileInfo[];       // 1-1000 個檔案
+}
+```
+
+**Response:**
+```typescript
+interface UploadTaskInfo {
+  task_id: string;    // UUID
+  audio_id: number;   // 預先建立的 AudioInfo ID
+  file_name: string;
+  object_key: string; // MinIO 路徑
+}
+
+interface UploadJobCreateResponse {
+  job_id: string;
+  deployment_id: number;
+  status: string;        // "pending"
+  total_files: number;
+  tasks: UploadTaskInfo[];
+}
+```
+
+#### 2. 初始化分段上傳
+
+**Request: `POST /api/v1/audio-upload-jobs/{job_id}/tasks/{task_id}/multipart/init`**
+
+(無 Body)
+
+**Response:**
+```typescript
+interface MultipartInitResponse {
+  upload_id: string;   // MinIO multipart upload ID
+  total_parts: number; // 總段數 (file_size / 5MB)
+  part_size: number;   // 每段大小 (預設 5MB = 5242880)
+}
+```
+
+#### 3. 取得 Part 上傳 URL
+
+**Request: `POST /api/v1/audio-upload-jobs/{job_id}/tasks/{task_id}/multipart/urls`**
+```typescript
+interface MultipartUrlsRequest {
+  part_numbers: number[]; // 要取得 URL 的 part 編號 [1, 2, 3, ...]
+}
+```
+
+**Response:**
+```typescript
+interface MultipartPartUrl {
+  part_number: number;
+  presigned_url: string; // 上傳用 URL (PUT)
+}
+
+interface MultipartUrlsResponse {
+  parts: MultipartPartUrl[];
+}
+```
+
+#### 4. 回報 Part 完成
+
+**Request: `POST /api/v1/audio-upload-jobs/{job_id}/tasks/{task_id}/multipart/part-complete`**
+```typescript
+interface PartCompleteRequest {
+  part_number: number;
+  etag: string; // MinIO 回傳的 ETag (從 response header 取得)
+}
+```
+
+**Response:** `{ "status": "ok" }`
+
+#### 5. 完成分段上傳
+
+**Request: `POST /api/v1/audio-upload-jobs/{job_id}/tasks/{task_id}/multipart/complete`**
+```typescript
+interface MultipartCompleteRequest {
+  parts: PartCompleteRequest[]; // 所有 parts 的 etag
+}
+```
+
+**Response:** `{ "status": "ok" }`
+
+#### 6. 查詢任務進度
+
+**Request: `GET /api/v1/audio-upload-jobs/{job_id}`**
+
+**Response:**
+```typescript
+interface UploadJobProgress {
+  total: number;      // 總檔案數
+  uploaded: number;   // 已上傳到 MinIO
+  completed: number;  // 已完成 (AudioInfo 更新)
+  failed: number;     // 失敗數
+  percentage: number; // 完成百分比
+}
+
+interface TaskStatusInfo {
+  task_id: string;
+  file_name: string;
+  status: string;           // "pending" | "multipart-init" | "uploading" | "uploaded" | "completed" | "failed"
+  completed_parts: number;
+  total_parts: number | null;
+}
+
+interface UploadJobStatusResponse {
+  job_id: string;
+  status: string;  // "pending" | "processing" | "completed" | "failed" | "cancelled"
+  progress: UploadJobProgress;
+  tasks: TaskStatusInfo[];
+  created_at: string;      // ISO datetime
+  started_at: string | null;
+  completed_at: string | null;
+  estimated_remaining: string | null; // "2h 30m"
+}
+```
+
+#### 7. 查詢單一檔案進度 (斷點續傳用)
+
+**Request: `GET /api/v1/audio-upload-jobs/{job_id}/tasks/{task_id}/progress`**
+
+**Response:**
+```typescript
+interface TaskProgressResponse {
+  task_id: string;
+  file_name: string;
+  status: string;
+  upload_id: string | null;
+  part_size: number | null;
+  total_parts: number | null;
+  completed_parts: number[];  // [1, 2, 3] 已完成的 part 編號
+  remaining_parts: number[];  // [4, 5, 6] 待上傳的 part 編號
+}
+```
+
+---
+
+### 下載流程 Schema
+
+#### 取得下載 URL
+
+**Request: `GET /api/v1/audio/{audio_id}/download-url?expires_in=3600`**
+
+| 參數 | 類型 | 預設值 | 說明 |
+|------|------|--------|------|
+| `expires_in` | int | 3600 | URL 有效期 (秒) |
+
+**Response:**
+```typescript
+interface AudioDownloadUrlResponse {
+  presigned_url: string;  // MinIO 下載 URL (GET)
+  expires_in: number;     // 有效期 (秒)
+  file_name: string;      // 原始檔名
+  file_size: number | null;
+}
+```
+
+---
+
+## 前後端完整流程圖
+
+### 批量上傳流程
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│  批量上傳流程 (800 個檔案，每檔 1.29GB)                                           │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  ┌──────────┐                    ┌──────────┐                    ┌──────────┐  │
+│  │  前端    │                    │  後端    │                    │  MinIO   │  │
+│  └────┬─────┘                    └────┬─────┘                    └────┬─────┘  │
+│       │                               │                               │        │
+│  ═════════════════════════════════════════════════════════════════════════════ │
+│  Step 1: 建立上傳任務                                                           │
+│  ═════════════════════════════════════════════════════════════════════════════ │
+│       │                               │                               │        │
+│       │ POST /audio-upload-jobs/      │                               │        │
+│       │ { deployment_id, files: [...] }                               │        │
+│       │──────────────────────────────>│                               │        │
+│       │                               │                               │        │
+│       │                               │ 1. 驗證 deployment            │        │
+│       │                               │ 2. 驗證檔名格式               │        │
+│       │                               │ 3. 檢查 object_key 重複       │        │
+│       │                               │ 4. 批量建立 AudioInfo         │        │
+│       │                               │    (upload_status="pending")  │        │
+│       │                               │ 5. 建立 UploadJob + Tasks     │        │
+│       │                               │                               │        │
+│       │<──────────────────────────────│                               │        │
+│       │ { job_id, tasks: [            │                               │        │
+│       │   { task_id, audio_id,        │                               │        │
+│       │     file_name, object_key }   │                               │        │
+│       │ ] }                           │                               │        │
+│       │                               │                               │        │
+│  ═════════════════════════════════════════════════════════════════════════════ │
+│  Step 2-6: 對每個檔案執行分段上傳 (並行處理 3 個檔案)                            │
+│  ═════════════════════════════════════════════════════════════════════════════ │
+│       │                               │                               │        │
+│       │ POST .../multipart/init       │                               │        │
+│       │──────────────────────────────>│ create_multipart_upload       │        │
+│       │                               │──────────────────────────────>│        │
+│       │<──────────────────────────────│                               │        │
+│       │ { upload_id, total_parts: 258,│                               │        │
+│       │   part_size: 5242880 }        │                               │        │
+│       │                               │                               │        │
+│       │ POST .../multipart/urls       │                               │        │
+│       │ { part_numbers: [1,2,3] }     │                               │        │
+│       │──────────────────────────────>│                               │        │
+│       │<──────────────────────────────│                               │        │
+│       │ { parts: [{ part_number,      │                               │        │
+│       │   presigned_url }, ...] }     │                               │        │
+│       │                               │                               │        │
+│       │ PUT presigned_url             │                               │        │
+│       │ (5MB chunk)                   │                               │        │
+│       │───────────────────────────────────────────────────────────────>│        │
+│       │<───────────────────────────────────────────────────────────────│        │
+│       │ ETag: "abc123"                │                               │        │
+│       │                               │                               │        │
+│       │ POST .../part-complete        │                               │        │
+│       │ { part_number: 1,             │                               │        │
+│       │   etag: "abc123" }            │                               │        │
+│       │──────────────────────────────>│ 記錄 part_etags               │        │
+│       │                               │                               │        │
+│       │ ... (重複 Part 2-258) ...     │                               │        │
+│       │                               │                               │        │
+│       │ POST .../multipart/complete   │                               │        │
+│       │ { parts: [...all etags] }     │                               │        │
+│       │──────────────────────────────>│ complete_multipart_upload     │        │
+│       │                               │──────────────────────────────>│        │
+│       │                               │                               │ 合併   │
+│       │                               │                               │ 檔案   │
+│       │                               │                               │        │
+│       │                               │ 更新 AudioInfo:               │        │
+│       │                               │   upload_status="completed"   │        │
+│       │                               │   file_size=actual_size       │        │
+│       │<──────────────────────────────│                               │        │
+│       │ { status: "ok" }              │                               │        │
+│       │                               │                               │        │
+│  ═════════════════════════════════════════════════════════════════════════════ │
+│  Step 7: 輪詢進度 (選填)                                                        │
+│  ═════════════════════════════════════════════════════════════════════════════ │
+│       │                               │                               │        │
+│       │ GET /audio-upload-jobs/{id}   │                               │        │
+│       │──────────────────────────────>│                               │        │
+│       │<──────────────────────────────│                               │        │
+│       │ { status, progress: {         │                               │        │
+│       │   total: 800,                 │                               │        │
+│       │   completed: 450,             │                               │        │
+│       │   percentage: 56.25 } }       │                               │        │
+│       │                               │                               │        │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 下載流程
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│  下載流程                                                                        │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  ┌──────────┐                    ┌──────────┐                    ┌──────────┐  │
+│  │  前端    │                    │  後端    │                    │  MinIO   │  │
+│  └────┬─────┘                    └────┬─────┘                    └────┬─────┘  │
+│       │                               │                               │        │
+│  ═════════════════════════════════════════════════════════════════════════════ │
+│  Step 1: 查詢音檔列表                                                           │
+│  ═════════════════════════════════════════════════════════════════════════════ │
+│       │                               │                               │        │
+│       │ GET /audio/?deployment_id=xxx │                               │        │
+│       │──────────────────────────────>│                               │        │
+│       │<──────────────────────────────│                               │        │
+│       │ [{ id: 101,                   │                               │        │
+│       │    file_name: "7505.xxx.wav", │                               │        │
+│       │    file_size: 1354000000,     │                               │        │
+│       │    record_time: "2024-06-11", │                               │        │
+│       │    ... }, ...]                │                               │        │
+│       │                               │                               │        │
+│  ═════════════════════════════════════════════════════════════════════════════ │
+│  Step 2: 使用者點擊「下載」                                                      │
+│  ═════════════════════════════════════════════════════════════════════════════ │
+│       │                               │                               │        │
+│       │ GET /audio/101/download-url   │                               │        │
+│       │   ?expires_in=3600            │                               │        │
+│       │──────────────────────────────>│                               │        │
+│       │                               │                               │        │
+│       │                               │ 1. 查詢 AudioInfo             │        │
+│       │                               │ 2. 驗證 upload_status         │        │
+│       │                               │    == "completed"             │        │
+│       │                               │ 3. 取得 bucket (project.name) │        │
+│       │                               │ 4. 產生 presigned URL         │        │
+│       │                               │    (method="get_object")      │        │
+│       │                               │                               │        │
+│       │<──────────────────────────────│                               │        │
+│       │ { presigned_url: "https://...│                               │        │
+│       │   ?X-Amz-Signature=...",     │                               │        │
+│       │   expires_in: 3600,           │                               │        │
+│       │   file_name: "7505.xxx.wav",  │                               │        │
+│       │   file_size: 1354000000 }     │                               │        │
+│       │                               │                               │        │
+│  ═════════════════════════════════════════════════════════════════════════════ │
+│  Step 3: 下載檔案 (直接從 MinIO)                                                │
+│  ═════════════════════════════════════════════════════════════════════════════ │
+│       │                               │                               │        │
+│       │ GET presigned_url             │                               │        │
+│       │───────────────────────────────────────────────────────────────>│        │
+│       │<───────────────────────────────────────────────────────────────│        │
+│       │ (檔案內容, 1.29GB)            │                               │        │
+│       │                               │                               │        │
+│       │ 前端處理:                     │                               │        │
+│       │ - window.location.href = url  │                               │        │
+│       │ - 或使用 <a download>         │                               │        │
+│       │                               │                               │        │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 斷點續傳流程
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│  斷點續傳流程 (網路中斷後恢復)                                                    │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  情境: 上傳第 300 個檔案時網路中斷，Part 1-150 已完成                            │
+│                                                                                 │
+│  ┌──────────┐                    ┌──────────┐                                  │
+│  │  前端    │                    │  後端    │                                  │
+│  └────┬─────┘                    └────┬─────┘                                  │
+│       │                               │                                        │
+│  ═════════════════════════════════════════════════════════════════════════════ │
+│  Step 1: 查詢任務狀態                                                           │
+│  ═════════════════════════════════════════════════════════════════════════════ │
+│       │                               │                                        │
+│       │ GET /audio-upload-jobs/{id}   │                                        │
+│       │──────────────────────────────>│                                        │
+│       │<──────────────────────────────│                                        │
+│       │ { tasks: [                    │                                        │
+│       │   { status: "completed" },    │  <- 檔案 1-299                         │
+│       │   { status: "uploading",      │  <- 檔案 300 (中斷點)                  │
+│       │     completed_parts: 150 },   │                                        │
+│       │   { status: "pending" },      │  <- 檔案 301-800                       │
+│       │   ...                         │                                        │
+│       │ ] }                           │                                        │
+│       │                               │                                        │
+│  ═════════════════════════════════════════════════════════════════════════════ │
+│  Step 2: 查詢中斷檔案的詳細進度                                                  │
+│  ═════════════════════════════════════════════════════════════════════════════ │
+│       │                               │                                        │
+│       │ GET .../tasks/{t300}/progress │                                        │
+│       │──────────────────────────────>│                                        │
+│       │<──────────────────────────────│                                        │
+│       │ { upload_id: "xxx",           │                                        │
+│       │   part_size: 5242880,         │                                        │
+│       │   total_parts: 258,           │                                        │
+│       │   completed_parts: [1..150],  │  <- 已完成                             │
+│       │   remaining_parts: [151..258] │  <- 待續傳                             │
+│       │ }                             │                                        │
+│       │                               │                                        │
+│  ═════════════════════════════════════════════════════════════════════════════ │
+│  Step 3: 只上傳剩餘的 Parts                                                     │
+│  ═════════════════════════════════════════════════════════════════════════════ │
+│       │                               │                                        │
+│       │ POST .../multipart/urls       │                                        │
+│       │ { part_numbers: [151,152,153] }                                        │
+│       │──────────────────────────────>│                                        │
+│       │                               │                                        │
+│       │ ... (上傳 Part 151-258) ...   │                                        │
+│       │                               │                                        │
+│       │ POST .../multipart/complete   │                                        │
+│       │──────────────────────────────>│                                        │
+│       │                               │                                        │
+│  ═════════════════════════════════════════════════════════════════════════════ │
+│  Step 4: 繼續上傳 pending 的檔案 (301-800)                                      │
+│  ═════════════════════════════════════════════════════════════════════════════ │
+│       │                               │                                        │
+│       │ (正常上傳流程)                │                                        │
+│       │                               │                                        │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 前端實作範例 (TypeScript)
+
+```typescript
+const API_BASE = '/api/v1';
+const PART_SIZE = 5 * 1024 * 1024;  // 5MB (與後端一致)
+const CONCURRENT_PARTS = 3;         // 每檔同時上傳 3 段
+const CONCURRENT_FILES = 3;         // 同時上傳 3 個檔案
+
+// 上傳單一檔案
+async function uploadFile(
+  jobId: string,
+  taskId: string,
+  file: File,
+  onProgress?: (percent: number) => void
+): Promise<void> {
+  const baseUrl = `${API_BASE}/audio-upload-jobs/${jobId}/tasks/${taskId}`;
+
+  // 1. 初始化分段上傳
+  const initRes = await fetch(`${baseUrl}/multipart/init`, { method: 'POST' });
+  const { upload_id, total_parts, part_size } = await initRes.json();
+
+  // 2. 上傳所有 parts
+  const completedParts: { part_number: number; etag: string }[] = [];
+
+  for (let i = 0; i < total_parts; i += CONCURRENT_PARTS) {
+    const batch = Array.from(
+      { length: Math.min(CONCURRENT_PARTS, total_parts - i) },
+      (_, j) => i + j + 1
+    );
+
+    // 取得這批 parts 的 URLs
+    const urlsRes = await fetch(`${baseUrl}/multipart/urls`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ part_numbers: batch }),
+    });
+    const { parts: urlParts } = await urlsRes.json();
+
+    // 並行上傳這批 parts
+    await Promise.all(
+      urlParts.map(async ({ part_number, presigned_url }) => {
+        const start = (part_number - 1) * part_size;
+        const end = Math.min(start + part_size, file.size);
+        const chunk = file.slice(start, end);
+
+        const uploadRes = await fetch(presigned_url, {
+          method: 'PUT',
+          body: chunk,
+        });
+
+        const etag = uploadRes.headers.get('ETag')?.replace(/"/g, '') || '';
+
+        // 回報完成
+        await fetch(`${baseUrl}/multipart/part-complete`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ part_number, etag }),
+        });
+
+        completedParts.push({ part_number, etag });
+
+        // 更新進度
+        onProgress?.((completedParts.length / total_parts) * 100);
+      })
+    );
+  }
+
+  // 3. 完成上傳
+  await fetch(`${baseUrl}/multipart/complete`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ parts: completedParts }),
+  });
+}
+
+// 下載檔案
+async function downloadFile(audioId: number): Promise<void> {
+  const res = await fetch(`${API_BASE}/audio/${audioId}/download-url`);
+  const { presigned_url, file_name } = await res.json();
+
+  // 方法 1: 直接導向 (大檔案推薦)
+  window.location.href = presigned_url;
+
+  // 方法 2: 使用 <a> 標籤 (可自訂檔名)
+  // const a = document.createElement('a');
+  // a.href = presigned_url;
+  // a.download = file_name;
+  // a.click();
+}
+```
