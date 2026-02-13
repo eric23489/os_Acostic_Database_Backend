@@ -5,11 +5,13 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.minio import get_s3_client
+from app.enums.enums import UploadStatus
 from app.models.audio import AudioInfo
 from app.models.deployment import DeploymentInfo
 from app.models.point import PointInfo
 from app.models.project import ProjectInfo
-from app.schemas.audio import AudioCreate, AudioUpdate
+from app.schemas.audio import AudioCreate, AudioDownloadUrlResponse, AudioUpdate
+from app.services.minio_service import MinioService
 
 logger = logging.getLogger(__name__)
 
@@ -208,3 +210,62 @@ class AudioService:
         self.db.commit()
 
         return {"message": "Audio permanently deleted"}
+
+    def get_download_url(
+        self, audio_id: int, expires_in: int = 3600
+    ) -> AudioDownloadUrlResponse:
+        """
+        取得 Audio 下載 URL。
+
+        Args:
+            audio_id: Audio ID
+            expires_in: URL 有效期 (秒)，預設 3600
+
+        Returns:
+            AudioDownloadUrlResponse: 包含 presigned URL 和檔案資訊
+        """
+        # 查詢 Audio (含關聯到 Project)
+        audio = (
+            self.db.query(AudioInfo)
+            .options(
+                joinedload(AudioInfo.deployment)
+                .joinedload(DeploymentInfo.point)
+                .joinedload(PointInfo.project)
+            )
+            .filter(AudioInfo.id == audio_id, AudioInfo.is_deleted.is_(False))
+            .first()
+        )
+        if not audio:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Audio not found",
+            )
+
+        # 驗證上傳狀態
+        if audio.upload_status != UploadStatus.COMPLETED:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    f"Audio upload not completed. "
+                    f"Current status: {audio.upload_status}"
+                ),
+            )
+
+        # 取得 bucket 名稱 (project.name)
+        bucket_name = audio.deployment.point.project.name
+
+        # 產生 presigned URL
+        minio_service = MinioService()
+        presigned_url = minio_service.generate_presigned_url(
+            bucket=bucket_name,
+            key=audio.object_key,
+            expires_in=expires_in,
+            method="get_object",
+        )
+
+        return AudioDownloadUrlResponse(
+            presigned_url=presigned_url,
+            expires_in=expires_in,
+            file_name=audio.file_name,
+            file_size=audio.file_size,
+        )

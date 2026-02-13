@@ -94,3 +94,12 @@ class PresignedUrlBatchRequest(BaseModel):
 
 class PresignedUrlBatchResponse(PresignedUrlResponse):
     filename: str
+
+
+class AudioDownloadUrlResponse(BaseModel):
+    """Audio 下載 URL 回應。"""
+
+    presigned_url: str
+    expires_in: int
+    file_name: str
+    file_size: int | None

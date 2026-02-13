@@ -8,6 +8,7 @@ from app.models.audio import AudioInfo
 from app.models.user import UserRole
 from app.schemas.audio import (
     AudioCreate,
+    AudioDownloadUrlResponse,
     AudioResponse,
     AudioUpdate,
     AudioWithDetailsResponse,
@@ -46,6 +47,21 @@ def get_audio_details(
     current_user=Depends(get_current_user),
 ):
     return AudioService(db).get_audio_details(audio_id)
+
+
+@router.get("/{audio_id}/download-url", response_model=AudioDownloadUrlResponse)
+def get_audio_download_url(
+    audio_id: int,
+    expires_in: int = 3600,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """
+    取得 Audio 下載 URL。
+
+    需要 Audio 的 upload_status 為 completed。
+    """
+    return AudioService(db).get_download_url(audio_id, expires_in)
 
 
 @router.post("/", response_model=AudioResponse)

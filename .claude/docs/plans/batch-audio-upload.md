@@ -13,8 +13,9 @@
 | **5** | API Endpoints (Job + Multipart) | 完成 |
 | **6** | Celery Tasks | 完成 |
 | **7** | 測試 | 完成 |
+| **8** | Audio 下載端點 | 完成 |
 
-**測試結果**: 307 tests passed (含 22 個新測試)
+**測試結果**: 整合測試 8 passed (含 4 個下載測試)
 
 **重要修正**:
 - ForeignKey 參照修正: `ForeignKey("users.id")` -> `ForeignKey("user_info.id")`
@@ -1735,6 +1736,7 @@ curl -X POST /api/v1/upload-jobs \
 | **5** | API Endpoints (Job + Multipart) | 完成 |
 | **6** | Celery Tasks | 完成 |
 | **7** | 測試 | 完成 |
+| **8** | Audio 下載端點 | 完成 |
 
 **Note**: Phase 0 (Project 建立時建立 Bucket) 尚未實作，將於後續整合時加入。
 
@@ -1845,4 +1847,159 @@ curl -X POST /api/v1/upload-jobs \
 │  ═══════════════════════════════════════════════════════════════════════   │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Phase 8: Audio 下載端點
+
+### 需求
+使用者透過 Project → Point → Deployment 導航後，要能透過 AudioInfo 的 `object_key` 下載 .wav 檔案。
+
+### object_key 的用途
+- **格式**: `{Point_Name}/{YYYY}/{MM}/Raw_Data/{Filename}`
+- **範例**: `TPC01/2024/06/Raw_Data/7505.240611130000.wav`
+- **用途**: MinIO 中檔案的唯一路徑，用於產生下載 URL
+
+### 現有查詢流程
+```
+GET /audio/?deployment_id=xxx
+→ 返回 AudioInfo 列表 (包含 object_key)
+→ 前端需要透過 object_key 取得下載 URL
+```
+
+### 新增端點
+
+#### `GET /audio/{audio_id}/download-url`
+
+```python
+# app/api/v1/endpoints/api_audio.py
+
+@router.get("/{audio_id}/download-url", response_model=AudioDownloadUrlResponse)
+def get_audio_download_url(
+    audio_id: int,
+    expires_in: int = 3600,  # 預設 1 小時
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """
+    取得音檔的下載 URL (presigned URL)
+
+    - 查詢 AudioInfo 取得 object_key
+    - 驗證 upload_status == "completed"
+    - 產生 MinIO presigned URL (method="get_object")
+    """
+    return AudioService(db).get_download_url(audio_id, expires_in)
+```
+
+### Schema
+
+```python
+# app/schemas/audio.py
+
+class AudioDownloadUrlResponse(BaseModel):
+    presigned_url: str
+    expires_in: int  # 有效期 (秒)
+    file_name: str
+    file_size: int | None
+```
+
+### Service 方法
+
+```python
+# app/services/audio_service.py
+
+def get_download_url(self, audio_id: int, expires_in: int = 3600) -> dict:
+    """取得音檔下載 URL"""
+    # 1. 查詢 AudioInfo (含關聯到 Project)
+    audio = (
+        self.db.query(AudioInfo)
+        .options(
+            joinedload(AudioInfo.deployment)
+            .joinedload(DeploymentInfo.point)
+            .joinedload(PointInfo.project)
+        )
+        .filter(AudioInfo.id == audio_id, AudioInfo.is_deleted.is_(False))
+        .first()
+    )
+
+    if not audio:
+        raise HTTPException(404, "Audio not found")
+
+    # 2. 驗證上傳狀態
+    if audio.upload_status != UploadStatus.COMPLETED:
+        raise HTTPException(400, f"Audio upload not completed: {audio.upload_status}")
+
+    # 3. 產生 presigned URL
+    bucket = audio.deployment.point.project.name
+    minio = MinioService()
+
+    presigned_url = minio.generate_presigned_url(
+        bucket=bucket,
+        key=audio.object_key,
+        expires_in=expires_in,
+        method="get_object",
+    )
+
+    return {
+        "presigned_url": presigned_url,
+        "expires_in": expires_in,
+        "file_name": audio.file_name,
+        "file_size": audio.file_size,
+    }
+```
+
+### 修改檔案
+
+| 檔案 | 修改內容 |
+|------|----------|
+| `app/schemas/audio.py` | 新增 `AudioDownloadUrlResponse` |
+| `app/services/audio_service.py` | 新增 `get_download_url()` |
+| `app/api/v1/endpoints/api_audio.py` | 新增 `GET /{audio_id}/download-url` |
+| `tests/integration/test_audio_upload_integration.py` | 新增下載驗證測試 |
+
+### 整合測試
+
+已實作 4 個測試函數於 `tests/integration/test_audio_upload_integration.py`:
+
+| 測試函數 | 說明 |
+|----------|------|
+| `test_download_url_after_upload` | 上傳完成後取得下載 URL 並驗證可下載 |
+| `test_download_url_with_custom_expires` | 自訂 expires_in 參數 |
+| `test_download_url_not_found` | 不存在的 Audio 回傳 404 |
+| `test_download_url_upload_not_completed` | upload_status 非 completed 回傳 400 |
+
+```python
+def test_download_url_after_upload(self, api_client, auth_headers, test_deployment, ...):
+    """測試上傳完成後取得下載 URL 並驗證可下載"""
+    # 1-6. 執行標準上傳流程
+
+    # 7. 取得 AudioInfo ID
+    audio = db_session.query(AudioInfo).filter(
+        AudioInfo.object_key == object_key
+    ).first()
+
+    # 8. 取得下載 URL
+    response = api_client.get(
+        f"{api_prefix}/audio/{audio.id}/download-url",
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    download_data = response.json()
+    assert download_data["expires_in"] == 3600
+    assert download_data["file_name"] == file_name
+
+    # 9. 驗證可下載
+    download_response = httpx.get(download_data["presigned_url"])
+    assert download_response.status_code == 200
+    assert download_response.content == test_file_content
+```
+
+### 驗證方式
+
+```bash
+# 整合測試
+docker exec os-acoustic-backend python -m pytest tests/integration/test_audio_upload_integration.py -v -k download
+
+# 測試結果: 4 passed
 ```
