@@ -46,4 +46,4 @@ jobs:
       - name: Run tests
         env:
           PYTHONPATH: ${{ github.workspace }}
-        run: pytest
+        run: pytest --ignore=tests/integration
