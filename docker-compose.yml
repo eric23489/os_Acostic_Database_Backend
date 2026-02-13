@@ -66,6 +66,9 @@ services:
     volumes:
       - ./app:/app/app
 
+      # 掛載測試檔案
+      - ./tests:/app/tests
+
       # 掛載 Alembic 設定檔
       - ./alembic.ini:/app/alembic.ini
       - ./alembic:/app/alembic

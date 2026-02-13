@@ -71,7 +71,7 @@ class UploadTask(Base):
     retry_count = Column(Integer, default=0)
 
     # Multipart Upload 追踪
-    upload_id = Column(String(100), nullable=True)  # MinIO multipart upload_id
+    upload_id = Column(String(255), nullable=True)  # MinIO multipart upload_id
     total_parts = Column(Integer, nullable=True)  # 总段数 (1.29GB / 100MB = 13)
     completed_parts = Column(Integer, default=0)  # 已完成段数
     part_size = Column(Integer, default=104857600)  # 每段大小 (预设 100MB)
