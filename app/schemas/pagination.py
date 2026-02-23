@@ -1,8 +1,11 @@
 """分頁相關的 Schema 定義。"""
 
 from enum import Enum
+from typing import Generic, TypeVar
 
 from pydantic import BaseModel, Field
+
+T = TypeVar("T")
 
 
 class SortOrder(str, Enum):
@@ -12,7 +15,7 @@ class SortOrder(str, Enum):
     DESC = "desc"
 
 
-class PaginatedResponse[T](BaseModel):
+class PaginatedResponse(BaseModel, Generic[T]):  # noqa: UP046
     """分頁回應的通用 Schema。"""
 
     items: list[T] = Field(..., description="資料項目列表")
