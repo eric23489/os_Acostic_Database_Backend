@@ -1,4 +1,4 @@
-from typing import List, Optional
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -18,9 +18,9 @@ from app.services.audio_service import AudioService
 router = APIRouter(prefix="/audio", tags=["audio"])
 
 
-@router.get("/", response_model=List[AudioResponse])
+@router.get("/", response_model=list[AudioResponse])
 def get_audios(
-    deployment_id: Optional[int] = None,
+    deployment_id: int | None = None,
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),

@@ -1,6 +1,8 @@
-from typing import Optional, Any, Dict, List
-from datetime import datetime, timezone, timedelta
-from pydantic import BaseModel, ConfigDict, field_validator, field_serializer
+from datetime import datetime, timedelta, timezone
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict, field_serializer, field_validator
+
 from app.schemas.deployment import DeploymentWithDetailsResponse
 
 
@@ -8,22 +10,22 @@ class AudioBase(BaseModel):
     deployment_id: int
     file_name: str
     object_key: str
-    file_format: Optional[str] = "wav"
-    file_size: Optional[int] = None
-    checksum: Optional[str] = None
-    record_time: Optional[datetime] = None
-    record_duration: Optional[float] = None
-    fs: Optional[int] = None
-    recorder_channel: Optional[int] = 0
-    audio_channels: Optional[int] = 1
-    target: Optional[str] = None
-    target_type: Optional[int] = None
-    meta_json: Optional[Dict[str, Any]] = None
-    is_cold_storage: Optional[bool] = False
+    file_format: str | None = "wav"
+    file_size: int | None = None
+    checksum: str | None = None
+    record_time: datetime | None = None
+    record_duration: float | None = None
+    fs: int | None = None
+    recorder_channel: int | None = 0
+    audio_channels: int | None = 1
+    target: str | None = None
+    target_type: int | None = None
+    meta_json: dict[str, Any] | None = None
+    is_cold_storage: bool | None = False
 
     @field_validator("record_time")
     @classmethod
-    def set_timezone(cls, v: Optional[datetime]) -> Optional[datetime]:
+    def set_timezone(cls, v: datetime | None) -> datetime | None:
         if v is not None and v.tzinfo is None:
             # 如果時間沒有時區資訊，預設加上台灣時區 (UTC+8)
             tw_tz = timezone(timedelta(hours=8))
@@ -36,31 +38,31 @@ class AudioCreate(AudioBase):
 
 
 class AudioUpdate(BaseModel):
-    deployment_id: Optional[int] = None
-    file_name: Optional[str] = None
-    object_key: Optional[str] = None
-    file_format: Optional[str] = None
-    file_size: Optional[int] = None
-    checksum: Optional[str] = None
-    record_time: Optional[datetime] = None
-    record_duration: Optional[float] = None
-    fs: Optional[int] = None
-    recorder_channel: Optional[int] = None
-    audio_channels: Optional[int] = None
-    target: Optional[str] = None
-    target_type: Optional[int] = None
-    meta_json: Optional[Dict[str, Any]] = None
-    is_cold_storage: Optional[bool] = None
+    deployment_id: int | None = None
+    file_name: str | None = None
+    object_key: str | None = None
+    file_format: str | None = None
+    file_size: int | None = None
+    checksum: str | None = None
+    record_time: datetime | None = None
+    record_duration: float | None = None
+    fs: int | None = None
+    recorder_channel: int | None = None
+    audio_channels: int | None = None
+    target: str | None = None
+    target_type: int | None = None
+    meta_json: dict[str, Any] | None = None
+    is_cold_storage: bool | None = None
 
 
 class AudioResponse(AudioBase):
     id: int
-    updated_at: Optional[datetime] = None
+    updated_at: datetime | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
     @field_serializer("record_time", "updated_at")
-    def serialize_dt(self, dt: Optional[datetime], _info):
+    def serialize_dt(self, dt: datetime | None, _info):
         if dt is None:
             return None
         return dt.astimezone(timezone(timedelta(hours=8)))
@@ -89,7 +91,7 @@ class PresignedUrlBatchRequest(BaseModel):
     project_name: str
     point_id: int
     point_name: str
-    filenames: List[str]
+    filenames: list[str]
 
 
 class PresignedUrlBatchResponse(PresignedUrlResponse):

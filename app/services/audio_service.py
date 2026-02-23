@@ -137,7 +137,10 @@ class AudioService:
         ):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Active audio with this object_key already exists. Cannot restore.",
+                detail=(
+                    "Active audio with this object_key already exists. "
+                    "Cannot restore."
+                ),
             )
 
         audio.is_deleted = False
