@@ -21,6 +21,17 @@ class ProjectBase(BaseModel):
     contact_email: Optional[str] = None
     project_type: ProjectType | None = None
 
+    @field_validator("start_time", "end_time")
+    @classmethod
+    def set_timezone(cls, v: Optional[datetime]) -> Optional[datetime]:
+        if v is not None and v.tzinfo is None:
+            # 如果時間沒有時區資訊，預設加上台灣時區 (UTC+8)
+            tw_tz = timezone(timedelta(hours=8))
+            return v.replace(tzinfo=tw_tz)
+        return v
+
+
+class ProjectCreate(ProjectBase):
     @field_validator("name")
     @classmethod
     def validate_project_name(cls, v: Optional[str]) -> Optional[str]:
@@ -44,19 +55,6 @@ class ProjectBase(BaseModel):
 
         return v
 
-    @field_validator("start_time", "end_time")
-    @classmethod
-    def set_timezone(cls, v: Optional[datetime]) -> Optional[datetime]:
-        if v is not None and v.tzinfo is None:
-            # 如果時間沒有時區資訊，預設加上台灣時區 (UTC+8)
-            tw_tz = timezone(timedelta(hours=8))
-            return v.replace(tzinfo=tw_tz)
-        return v
-
-
-class ProjectCreate(ProjectBase):
-    pass
-
 
 class ProjectUpdate(BaseModel):
     name: Optional[str] = None
@@ -72,6 +70,29 @@ class ProjectUpdate(BaseModel):
     contact_phone: Optional[str] = None
     contact_email: Optional[str] = None
     project_type: ProjectType | None = None
+
+    @field_validator("name")
+    @classmethod
+    def validate_project_name(cls, v: Optional[str]) -> Optional[str]:
+        # Allow None - name can be auto-generated from name_zh
+        if v is None:
+            return v
+
+        # MinIO/S3 Bucket naming rules:
+        # 1. Length 3-63 characters
+        # 2. Lowercase letters, numbers, dots, hyphens
+        # 3. Start/end with letter or number
+        # 4. No IP address format
+
+        # Auto-convert to lowercase
+        v = v.lower()
+
+        if not re.match(r"^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$", v):
+            raise ValueError(
+                "Project name must be 3-63 chars, lowercase, numbers, dots, hyphens only, and start/end with alphanumeric."
+            )
+
+        return v
 
 
 class ProjectResponse(ProjectBase):
