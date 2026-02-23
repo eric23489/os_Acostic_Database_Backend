@@ -1,4 +1,3 @@
-from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -6,6 +5,7 @@ from app.core.auth import get_current_user
 from app.db.session import get_db
 from app.models.point import PointInfo
 from app.models.user import UserRole
+from app.schemas.pagination import PaginatedResponse, SortOrder
 from app.schemas.point import (
     PointCreate,
     PointResponse,
@@ -17,15 +17,34 @@ from app.services.point_service import PointService
 router = APIRouter(prefix="/points", tags=["points"])
 
 
-@router.get("/", response_model=List[PointResponse])
+@router.get("/", response_model=PaginatedResponse[PointResponse])
 def get_points(
-    project_id: int,
     skip: int = 0,
     limit: int = 100,
+    project_id: int | None = None,
+    search: str | None = None,
+    sort_by: str | None = None,
+    order: SortOrder = SortOrder.DESC,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    return PointService(db).get_points(project_id, skip=skip, limit=limit)
+    """
+    取得測點列表。
+
+    - **project_id**: 篩選專案 ID (選填，不傳回傳所有)
+    - **search**: 搜尋關鍵字 (搜尋 name, description)
+    - **sort_by**: 排序欄位 (name, created_at)
+    - **order**: 排序方向 (asc, desc)
+    """
+    items, total = PointService(db).get_points(
+        skip=skip,
+        limit=limit,
+        project_id=project_id,
+        search=search,
+        sort_by=sort_by,
+        order=order,
+    )
+    return PaginatedResponse(items=items, total=total, skip=skip, limit=limit)
 
 
 @router.get("/{point_id}", response_model=PointResponse)

@@ -1,4 +1,3 @@
-
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
@@ -14,6 +13,7 @@ from app.schemas.oauth import (
     SetPasswordRequest,
     SetPasswordResponse,
 )
+from app.schemas.pagination import PaginatedResponse, SortOrder
 from app.schemas.user import Token, UserCreate, UserResponse, UserUpdate
 from app.services.oauth_service import OAuthService
 from app.services.user_service import UserService
@@ -49,20 +49,42 @@ def read_users_me(current_user=Depends(get_current_user)):
     return current_user  # model_validator auto-computes has_password
 
 
-@router.get("/", response_model=list[UserResponse])
+@router.get("/", response_model=PaginatedResponse[UserResponse])
 def read_users(
     skip: int = 0,
     limit: int = 100,
+    search: str | None = None,
+    role: str | None = None,
+    is_active: bool | None = None,
+    sort_by: str | None = None,
+    order: SortOrder = SortOrder.DESC,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    """Admin query all accounts."""
+    """
+    取得使用者列表 (Admin only)。
+
+    - **search**: 搜尋關鍵字 (搜尋 full_name, email)
+    - **role**: 篩選角色
+    - **is_active**: 篩選是否啟用
+    - **sort_by**: 排序欄位 (email, created_at)
+    - **order**: 排序方向 (asc, desc)
+    """
     if current_user.role != UserRole.ADMIN.value:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="The user doesn't have enough privileges",
         )
-    return UserService(db).get_users(skip=skip, limit=limit)
+    items, total = UserService(db).get_users(
+        skip=skip,
+        limit=limit,
+        search=search,
+        role=role,
+        is_active=is_active,
+        sort_by=sort_by,
+        order=order,
+    )
+    return PaginatedResponse(items=items, total=total, skip=skip, limit=limit)
 
 
 @router.put("/me", response_model=UserResponse)

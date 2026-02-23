@@ -11,7 +11,9 @@ from app.models.deployment import DeploymentInfo
 from app.models.point import PointInfo
 from app.models.project import ProjectInfo
 from app.schemas.audio import AudioCreate, AudioDownloadUrlResponse, AudioUpdate
+from app.schemas.pagination import SortOrder
 from app.services.minio_service import MinioService
+from app.utils.query import apply_filter, apply_search, apply_sorting, paginate
 
 logger = logging.getLogger(__name__)
 
@@ -52,12 +54,43 @@ class AudioService:
         return audio
 
     def get_audios(
-        self, deployment_id: int | None = None, skip: int = 0, limit: int = 100
-    ) -> list[AudioInfo]:
+        self,
+        skip: int = 0,
+        limit: int = 100,
+        deployment_id: int | None = None,
+        search: str | None = None,
+        sort_by: str | None = None,
+        order: SortOrder = SortOrder.DESC,
+    ) -> tuple[list[AudioInfo], int]:
+        """
+        取得音檔列表，支援搜尋、篩選、排序和分頁。
+
+        Args:
+            skip: 跳過的筆數
+            limit: 每頁筆數上限
+            deployment_id: 篩選佈放 ID (選填)
+            search: 搜尋關鍵字 (搜尋 file_name, target)
+            sort_by: 排序欄位 (file_name, record_time, file_size, created_at)
+            order: 排序方向
+
+        Returns:
+            tuple: (items, total)
+        """
         query = self.db.query(AudioInfo).filter(AudioInfo.is_deleted.is_(False))
-        if deployment_id:
-            query = query.filter(AudioInfo.deployment_id == deployment_id)
-        return query.offset(skip).limit(limit).all()
+
+        # 篩選
+        query = apply_filter(query, AudioInfo, "deployment_id", deployment_id)
+
+        # 搜尋
+        search_fields = ["file_name", "target"]
+        query = apply_search(query, AudioInfo, search_fields, search)
+
+        # 排序
+        allowed_sort_fields = ["file_name", "record_time", "file_size", "created_at"]
+        query = apply_sorting(query, AudioInfo, sort_by, order, allowed_sort_fields)
+
+        # 分頁
+        return paginate(query, skip, limit)
 
     def create_audio(self, audio_in: AudioCreate) -> AudioInfo:
         # Check if object_key exists (unique constraint)

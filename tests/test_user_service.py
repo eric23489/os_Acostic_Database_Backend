@@ -131,15 +131,18 @@ class TestUserServiceGetUsers:
     """Tests for UserService.get_users."""
 
     def test_get_users_success(self):
-        """Should return list of users."""
+        """Should return tuple of (users, total)."""
         mock_db = MagicMock()
         mock_users = [MagicMock(), MagicMock()]
-        mock_db.query.return_value.filter.return_value.offset.return_value.limit.return_value.all.return_value = mock_users
+        mock_chain = mock_db.query.return_value.filter.return_value
+        mock_chain.count.return_value = 2
+        mock_chain.offset.return_value.limit.return_value.all.return_value = mock_users
 
         service = UserService(mock_db)
-        result = service.get_users(skip=0, limit=100)
+        items, total = service.get_users(skip=0, limit=100)
 
-        assert result == mock_users
+        assert items == mock_users
+        assert total == 2
 
 
 class TestUserServiceUpdateUser:

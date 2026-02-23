@@ -1,16 +1,44 @@
 from unittest.mock import patch
-from app.schemas.point import PointResponse
+
 from app.core.config import settings
+from app.schemas.point import PointResponse
 
 
 def test_get_points(client):
     with patch("app.api.v1.endpoints.api_points.PointService") as MockService:
         mock_service = MockService.return_value
-        mock_service.get_points.return_value = []
+        mock_service.get_points.return_value = ([], 0)
 
         response = client.get(f"{settings.api_prefix}/points/?project_id=1")
         assert response.status_code == 200
-        assert response.json() == []
+        data = response.json()
+        assert "items" in data
+        assert "total" in data
+        assert "skip" in data
+        assert "limit" in data
+        assert data["total"] == 0
+        assert data["items"] == []
+        mock_service.get_points.assert_called_once()
+
+
+def test_get_points_without_project_id(client):
+    """Test that points can be fetched without project_id (returns all)."""
+    with patch("app.api.v1.endpoints.api_points.PointService") as MockService:
+        mock_service = MockService.return_value
+        mock_service.get_points.return_value = (
+            [
+                PointResponse(
+                    id=1, project_id=1, name="Point A", gps_lat_plan=23.5, gps_lon_plan=121.5
+                )
+            ],
+            1,
+        )
+
+        response = client.get(f"{settings.api_prefix}/points/")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] == 1
+        assert len(data["items"]) == 1
         mock_service.get_points.assert_called_once()
 
 

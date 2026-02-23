@@ -1,27 +1,47 @@
 from datetime import datetime
-from typing import List
 
-from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_user
-from app.db.session import get_db, SessionLocal
+from app.db.session import SessionLocal, get_db
 from app.models.project import ProjectInfo
 from app.models.user import UserRole
+from app.schemas.pagination import PaginatedResponse, SortOrder
 from app.schemas.project import ProjectCreate, ProjectResponse, ProjectUpdate
 from app.services.project_service import ProjectService
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
 
-@router.get("/", response_model=List[ProjectResponse])
+@router.get("/", response_model=PaginatedResponse[ProjectResponse])
 def get_projects(
     skip: int = 0,
     limit: int = 100,
+    search: str | None = None,
+    is_finished: bool | None = None,
+    sort_by: str | None = None,
+    order: SortOrder = SortOrder.DESC,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    return ProjectService(db).get_projects(skip=skip, limit=limit)
+    """
+    取得專案列表。
+
+    - **search**: 搜尋關鍵字 (搜尋 name, name_zh, area, owner, contractor)
+    - **is_finished**: 篩選是否已完成
+    - **sort_by**: 排序欄位 (name, created_at, start_time)
+    - **order**: 排序方向 (asc, desc)
+    """
+    items, total = ProjectService(db).get_projects(
+        skip=skip,
+        limit=limit,
+        search=search,
+        is_finished=is_finished,
+        sort_by=sort_by,
+        order=order,
+    )
+    return PaginatedResponse(items=items, total=total, skip=skip, limit=limit)
 
 
 @router.get("/{project_id}", response_model=ProjectResponse)

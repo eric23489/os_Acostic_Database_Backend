@@ -1,12 +1,14 @@
 from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
-from sqlalchemy.orm import Session
 from sqlalchemy import exists
+from sqlalchemy.orm import Session
 
 from app.models.deployment import DeploymentInfo
 from app.models.recorder import RecorderInfo
+from app.schemas.pagination import SortOrder
 from app.schemas.recorder import RecorderCreate, RecorderUpdate
+from app.utils.query import apply_filter, apply_search, apply_sorting, paginate
 
 
 class RecorderService:
@@ -36,14 +38,46 @@ class RecorderService:
             )
         return recorder
 
-    def get_recorders(self, skip: int = 0, limit: int = 100) -> list[RecorderInfo]:
-        return (
-            self.db.query(RecorderInfo)
-            .filter(RecorderInfo.is_deleted.is_(False))
-            .offset(skip)
-            .limit(limit)
-            .all()
+    def get_recorders(
+        self,
+        skip: int = 0,
+        limit: int = 100,
+        search: str | None = None,
+        status: str | None = None,
+        sort_by: str | None = None,
+        order: SortOrder = SortOrder.DESC,
+    ) -> tuple[list[RecorderInfo], int]:
+        """
+        取得錄音器列表，支援搜尋、篩選、排序和分頁。
+
+        Args:
+            skip: 跳過的筆數
+            limit: 每頁筆數上限
+            search: 搜尋關鍵字 (搜尋 brand, model, sn, owner)
+            status: 篩選狀態
+            sort_by: 排序欄位 (brand, model, sn, created_at)
+            order: 排序方向
+
+        Returns:
+            tuple: (items, total)
+        """
+        query = self.db.query(RecorderInfo).filter(RecorderInfo.is_deleted.is_(False))
+
+        # 搜尋
+        search_fields = ["brand", "model", "sn", "owner"]
+        query = apply_search(query, RecorderInfo, search_fields, search)
+
+        # 篩選
+        query = apply_filter(query, RecorderInfo, "status", status)
+
+        # 排序
+        allowed_sort_fields = ["brand", "model", "sn", "created_at"]
+        query = apply_sorting(
+            query, RecorderInfo, sort_by, order, allowed_sort_fields
         )
+
+        # 分頁
+        return paginate(query, skip, limit)
 
     def check_soft_deleted_recorder_exists(self, brand: str, model: str, sn: str) -> bool:
         """檢查是否有軟刪除的 Recorder 佔用此識別碼。"""

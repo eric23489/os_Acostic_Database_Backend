@@ -1,4 +1,3 @@
-from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -6,6 +5,7 @@ from app.core.auth import get_current_user
 from app.db.session import get_db
 from app.models.recorder import RecorderInfo
 from app.models.user import UserRole
+from app.schemas.pagination import PaginatedResponse, SortOrder
 from app.schemas.recorder import RecorderCreate, RecorderResponse, RecorderUpdate
 from app.services.recorder_service import RecorderService
 
@@ -21,14 +21,34 @@ def get_recorder(
     return RecorderService(db).get_recorder(recorder_id)
 
 
-@router.get("/", response_model=List[RecorderResponse])
+@router.get("/", response_model=PaginatedResponse[RecorderResponse])
 def get_recorders(
     skip: int = 0,
     limit: int = 100,
+    search: str | None = None,
+    recorder_status: str | None = None,
+    sort_by: str | None = None,
+    order: SortOrder = SortOrder.DESC,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    return RecorderService(db).get_recorders(skip=skip, limit=limit)
+    """
+    取得錄音器列表。
+
+    - **search**: 搜尋關鍵字 (搜尋 brand, model, sn, owner)
+    - **recorder_status**: 篩選狀態
+    - **sort_by**: 排序欄位 (brand, model, sn, created_at)
+    - **order**: 排序方向 (asc, desc)
+    """
+    items, total = RecorderService(db).get_recorders(
+        skip=skip,
+        limit=limit,
+        search=search,
+        status=recorder_status,
+        sort_by=sort_by,
+        order=order,
+    )
+    return PaginatedResponse(items=items, total=total, skip=skip, limit=limit)
 
 
 @router.post("/", response_model=RecorderResponse)

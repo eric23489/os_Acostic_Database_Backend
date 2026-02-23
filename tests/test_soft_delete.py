@@ -722,13 +722,14 @@ class TestSoftDeleteFiltering:
             mock_project.project_type = None
             mock_project.created_at = datetime.now(timezone.utc)
             mock_project.updated_at = datetime.now(timezone.utc)
-            mock_service.get_projects.return_value = [mock_project]
+            mock_service.get_projects.return_value = ([mock_project], 1)
 
             response = client.get(f"{settings.api_prefix}/projects/")
 
             assert response.status_code == 200
             data = response.json()
-            assert len(data) == 1
+            assert len(data["items"]) == 1
+            assert data["total"] == 1
             mock_service.get_projects.assert_called_once()
 
     def test_get_points_excludes_deleted(self, client):
@@ -751,13 +752,14 @@ class TestSoftDeleteFiltering:
             mock_point.description = None
             mock_point.created_at = datetime.now(timezone.utc)
             mock_point.updated_at = datetime.now(timezone.utc)
-            mock_service.get_points.return_value = [mock_point]
+            mock_service.get_points.return_value = ([mock_point], 1)
 
             response = client.get(f"{settings.api_prefix}/points/?project_id=1")
 
             assert response.status_code == 200
             data = response.json()
-            assert len(data) == 1
+            assert len(data["items"]) == 1
+            assert data["total"] == 1
             mock_service.get_points.assert_called_once()
 
     def test_get_deployments_excludes_deleted(self, client):
@@ -791,13 +793,14 @@ class TestSoftDeleteFiltering:
             mock_deployment.description = None
             mock_deployment.created_at = datetime.now(timezone.utc)
             mock_deployment.updated_at = datetime.now(timezone.utc)
-            mock_service.get_deployments.return_value = [mock_deployment]
+            mock_service.get_deployments.return_value = ([mock_deployment], 1)
 
             response = client.get(f"{settings.api_prefix}/deployments/?point_id=1")
 
             assert response.status_code == 200
             data = response.json()
-            assert len(data) == 1
+            assert len(data["items"]) == 1
+            assert data["total"] == 1
             mock_service.get_deployments.assert_called_once()
 
     def test_get_audios_excludes_deleted(self, client):
@@ -828,13 +831,14 @@ class TestSoftDeleteFiltering:
             mock_audio.meta_json = None
             mock_audio.is_cold_storage = False
             mock_audio.updated_at = datetime.now(timezone.utc)
-            mock_service.get_audios.return_value = [mock_audio]
+            mock_service.get_audios.return_value = ([mock_audio], 1)
 
             response = client.get(f"{settings.api_prefix}/audio/?deployment_id=1")
 
             assert response.status_code == 200
             data = response.json()
-            assert len(data) == 1
+            assert len(data["items"]) == 1
+            assert data["total"] == 1
             mock_service.get_audios.assert_called_once()
 
     def test_get_recorders_excludes_deleted(self, client):
@@ -863,11 +867,12 @@ class TestSoftDeleteFiltering:
             mock_recorder.description = None
             mock_recorder.created_at = datetime.now(timezone.utc)
             mock_recorder.updated_at = datetime.now(timezone.utc)
-            mock_service.get_recorders.return_value = [mock_recorder]
+            mock_service.get_recorders.return_value = ([mock_recorder], 1)
 
             response = client.get(f"{settings.api_prefix}/recorders/")
 
             assert response.status_code == 200
             data = response.json()
-            assert len(data) == 1
+            assert len(data["items"]) == 1
+            assert data["total"] == 1
             mock_service.get_recorders.assert_called_once()

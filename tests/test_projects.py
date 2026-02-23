@@ -1,19 +1,42 @@
 from unittest.mock import patch
-from app.schemas.project import ProjectResponse
+
 from app.core.config import settings
+from app.schemas.project import ProjectResponse
 
 
 def test_get_projects(client):
     with patch("app.api.v1.endpoints.api_projects.ProjectService") as MockService:
         mock_service = MockService.return_value
-        mock_service.get_projects.return_value = [
-            ProjectResponse(id=1, name="Project-A", area="Area A", project_type=None)
-        ]
+        mock_service.get_projects.return_value = (
+            [ProjectResponse(id=1, name="project-a", area="Area A", project_type=None)],
+            1,
+        )
 
         response = client.get(f"{settings.api_prefix}/projects/")
         assert response.status_code == 200
-        assert len(response.json()) == 1
-        assert response.json()[0]["name"] == "project-a"
+        data = response.json()
+        assert "items" in data
+        assert "total" in data
+        assert "skip" in data
+        assert "limit" in data
+        assert data["total"] == 1
+        assert len(data["items"]) == 1
+        assert data["items"][0]["name"] == "project-a"
+        mock_service.get_projects.assert_called_once()
+
+
+def test_get_projects_with_search(client):
+    with patch("app.api.v1.endpoints.api_projects.ProjectService") as MockService:
+        mock_service = MockService.return_value
+        mock_service.get_projects.return_value = ([], 0)
+
+        response = client.get(
+            f"{settings.api_prefix}/projects/?search=test&is_finished=true&sort_by=name&order=asc"
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] == 0
+        assert data["items"] == []
         mock_service.get_projects.assert_called_once()
 
 

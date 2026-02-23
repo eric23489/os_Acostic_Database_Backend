@@ -9,8 +9,10 @@ from app.models.audio import AudioInfo
 from app.models.deployment import DeploymentInfo
 from app.models.point import PointInfo
 from app.models.project import ProjectInfo
+from app.schemas.pagination import SortOrder
 from app.schemas.project import ProjectCreate, ProjectUpdate
 from app.utils.naming import generate_slug_from_zh
+from app.utils.query import apply_filter, apply_search, apply_sorting, paginate
 
 logger = logging.getLogger(__name__)
 
@@ -33,14 +35,44 @@ class ProjectService:
             )
         return project
 
-    def get_projects(self, skip: int = 0, limit: int = 100) -> list[ProjectInfo]:
-        return (
-            self.db.query(ProjectInfo)
-            .filter(ProjectInfo.is_deleted.is_(False))
-            .offset(skip)
-            .limit(limit)
-            .all()
-        )
+    def get_projects(
+        self,
+        skip: int = 0,
+        limit: int = 100,
+        search: str | None = None,
+        is_finished: bool | None = None,
+        sort_by: str | None = None,
+        order: SortOrder = SortOrder.DESC,
+    ) -> tuple[list[ProjectInfo], int]:
+        """
+        取得專案列表，支援搜尋、篩選、排序和分頁。
+
+        Args:
+            skip: 跳過的筆數
+            limit: 每頁筆數上限
+            search: 搜尋關鍵字 (搜尋 name, name_zh, area, owner, contractor)
+            is_finished: 篩選是否已完成
+            sort_by: 排序欄位 (name, created_at, start_time)
+            order: 排序方向
+
+        Returns:
+            tuple: (items, total)
+        """
+        query = self.db.query(ProjectInfo).filter(ProjectInfo.is_deleted.is_(False))
+
+        # 搜尋
+        search_fields = ["name", "name_zh", "area", "owner", "contractor"]
+        query = apply_search(query, ProjectInfo, search_fields, search)
+
+        # 篩選
+        query = apply_filter(query, ProjectInfo, "is_finished", is_finished)
+
+        # 排序
+        allowed_sort_fields = ["name", "created_at", "start_time"]
+        query = apply_sorting(query, ProjectInfo, sort_by, order, allowed_sort_fields)
+
+        # 分頁
+        return paginate(query, skip, limit)
 
     def get_projects_hierarchy(self) -> list[ProjectInfo]:
         return (

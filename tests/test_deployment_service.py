@@ -12,7 +12,7 @@ DeploymentService 測試 - P1 (重要)
 """
 
 from datetime import UTC, datetime
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi import HTTPException
@@ -102,30 +102,35 @@ class TestDeploymentServiceGetDeploymentDetails:
 class TestDeploymentServiceGetDeployments:
     """測試 DeploymentService.get_deployments 方法。"""
 
-    def test_get_deployments_returns_list(self):
-        """回傳 Deployment 列表。"""
+    @patch("app.services.deployment_service.paginate")
+    def test_get_deployments_returns_tuple(self, mock_paginate):
+        """回傳 (Deployment 列表, total) tuple。"""
         mock_db = MagicMock()
         mock_deployments = [MagicMock(), MagicMock()]
-        mock_chain = mock_db.query.return_value.filter.return_value
-        mock_limit = mock_chain.offset.return_value.limit.return_value
-        mock_limit.all.return_value = mock_deployments
+        mock_paginate.return_value = (mock_deployments, 2)
 
         service = DeploymentService(mock_db)
-        result = service.get_deployments(point_id=1)
+        items, total = service.get_deployments(point_id=1)
 
-        assert result == mock_deployments
+        assert items == mock_deployments
+        assert total == 2
+        mock_paginate.assert_called_once()
 
-    def test_get_deployments_with_pagination(self):
+    @patch("app.services.deployment_service.paginate")
+    def test_get_deployments_with_pagination(self, mock_paginate):
         """支援分頁參數。"""
         mock_db = MagicMock()
-        mock_chain = mock_db.query.return_value.filter.return_value
-        mock_chain.offset.return_value.limit.return_value.all.return_value = []
+        mock_paginate.return_value = ([], 0)
 
         service = DeploymentService(mock_db)
-        service.get_deployments(point_id=1, skip=5, limit=10)
+        items, total = service.get_deployments(point_id=1, skip=5, limit=10)
 
-        mock_chain.offset.assert_called_with(5)
-        mock_chain.offset.return_value.limit.assert_called_with(10)
+        # 驗證 paginate 呼叫時帶入正確的 skip 和 limit
+        call_args = mock_paginate.call_args
+        assert call_args[0][1] == 5  # skip
+        assert call_args[0][2] == 10  # limit
+        assert items == []
+        assert total == 0
 
 
 # =============================================================================

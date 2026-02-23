@@ -1,17 +1,47 @@
 from unittest.mock import patch
+
 from fastapi import HTTPException
-from app.schemas.recorder import RecorderResponse
+
 from app.core.config import settings
+from app.schemas.recorder import RecorderResponse
 
 
 def test_get_recorders(client):
     with patch("app.api.v1.endpoints.api_recorders.RecorderService") as MockService:
         mock_service = MockService.return_value
-        mock_service.get_recorders.return_value = []
+        mock_service.get_recorders.return_value = ([], 0)
 
         response = client.get(f"{settings.api_prefix}/recorders/")
         assert response.status_code == 200
-        assert response.json() == []
+        data = response.json()
+        assert "items" in data
+        assert "total" in data
+        assert "skip" in data
+        assert "limit" in data
+        assert data["total"] == 0
+        assert data["items"] == []
+        mock_service.get_recorders.assert_called_once()
+
+
+def test_get_recorders_with_search(client):
+    """Test recorders search and filter."""
+    with patch("app.api.v1.endpoints.api_recorders.RecorderService") as MockService:
+        mock_service = MockService.return_value
+        mock_service.get_recorders.return_value = (
+            [
+                RecorderResponse(
+                    id=1, brand="Brand", model="Model", sn="SN123", sensitivity=-160.0
+                )
+            ],
+            1,
+        )
+
+        response = client.get(
+            f"{settings.api_prefix}/recorders/?search=SN123&recorder_status=in-service"
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] == 1
         mock_service.get_recorders.assert_called_once()
 
 

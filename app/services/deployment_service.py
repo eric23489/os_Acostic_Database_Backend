@@ -11,6 +11,8 @@ from app.models.deployment import DeploymentInfo
 from app.models.point import PointInfo
 from app.models.project import ProjectInfo
 from app.schemas.deployment import DeploymentCreate, DeploymentUpdate
+from app.schemas.pagination import SortOrder
+from app.utils.query import apply_filter, apply_sorting, paginate
 
 logger = logging.getLogger(__name__)
 
@@ -54,17 +56,44 @@ class DeploymentService:
         return deployment
 
     def get_deployments(
-        self, point_id: int, skip: int = 0, limit: int = 100
-    ) -> list[DeploymentInfo]:
-        return (
-            self.db.query(DeploymentInfo)
-            .filter(
-                DeploymentInfo.point_id == point_id, DeploymentInfo.is_deleted.is_(False)
-            )
-            .offset(skip)
-            .limit(limit)
-            .all()
+        self,
+        skip: int = 0,
+        limit: int = 100,
+        point_id: int | None = None,
+        status: str | None = None,
+        sort_by: str | None = None,
+        order: SortOrder = SortOrder.DESC,
+    ) -> tuple[list[DeploymentInfo], int]:
+        """
+        取得佈放列表，支援篩選、排序和分頁。
+
+        Args:
+            skip: 跳過的筆數
+            limit: 每頁筆數上限
+            point_id: 篩選測點 ID (選填)
+            status: 篩選狀態
+            sort_by: 排序欄位 (phase, created_at, deploy_time, return_time)
+            order: 排序方向
+
+        Returns:
+            tuple: (items, total)
+        """
+        query = self.db.query(DeploymentInfo).filter(
+            DeploymentInfo.is_deleted.is_(False)
         )
+
+        # 篩選
+        query = apply_filter(query, DeploymentInfo, "point_id", point_id)
+        query = apply_filter(query, DeploymentInfo, "status", status)
+
+        # 排序
+        allowed_sort_fields = ["phase", "created_at", "deploy_time", "return_time"]
+        query = apply_sorting(
+            query, DeploymentInfo, sort_by, order, allowed_sort_fields
+        )
+
+        # 分頁
+        return paginate(query, skip, limit)
 
     def create_deployment(self, deployment_in: DeploymentCreate) -> DeploymentInfo:
         # Auto-calculate Phase: Max phase for this point + 1

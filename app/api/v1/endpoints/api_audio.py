@@ -1,4 +1,3 @@
-
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -13,22 +12,40 @@ from app.schemas.audio import (
     AudioUpdate,
     AudioWithDetailsResponse,
 )
+from app.schemas.pagination import PaginatedResponse, SortOrder
 from app.services.audio_service import AudioService
 
 router = APIRouter(prefix="/audio", tags=["audio"])
 
 
-@router.get("/", response_model=list[AudioResponse])
+@router.get("/", response_model=PaginatedResponse[AudioResponse])
 def get_audios(
-    deployment_id: int | None = None,
     skip: int = 0,
     limit: int = 100,
+    deployment_id: int | None = None,
+    search: str | None = None,
+    sort_by: str | None = None,
+    order: SortOrder = SortOrder.DESC,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    return AudioService(db).get_audios(
-        deployment_id=deployment_id, skip=skip, limit=limit
+    """
+    取得音檔列表。
+
+    - **deployment_id**: 篩選佈放 ID (選填)
+    - **search**: 搜尋關鍵字 (搜尋 file_name, target)
+    - **sort_by**: 排序欄位 (file_name, record_time, file_size, created_at)
+    - **order**: 排序方向 (asc, desc)
+    """
+    items, total = AudioService(db).get_audios(
+        skip=skip,
+        limit=limit,
+        deployment_id=deployment_id,
+        search=search,
+        sort_by=sort_by,
+        order=order,
     )
+    return PaginatedResponse(items=items, total=total, skip=skip, limit=limit)
 
 
 @router.get("/{audio_id}", response_model=AudioResponse)

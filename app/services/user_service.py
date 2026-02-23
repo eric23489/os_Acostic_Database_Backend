@@ -6,8 +6,10 @@ from sqlalchemy.orm import Session
 from app.core.security import hash_password, verify_password
 from app.enums.enums import UserRole
 from app.models.user import UserInfo
+from app.schemas.pagination import SortOrder
 from app.schemas.user import UserCreate, UserUpdate
 from app.utils.common import format_welcome_message
+from app.utils.query import apply_filter, apply_search, apply_sorting, paginate
 
 
 class UserService:
@@ -59,14 +61,47 @@ class UserService:
             return None
         return user
 
-    def get_users(self, skip: int = 0, limit: int = 100) -> list[UserInfo]:
-        return (
-            self.db.query(UserInfo)
-            .filter(UserInfo.is_deleted.is_(False))
-            .offset(skip)
-            .limit(limit)
-            .all()
-        )
+    def get_users(
+        self,
+        skip: int = 0,
+        limit: int = 100,
+        search: str | None = None,
+        role: str | None = None,
+        is_active: bool | None = None,
+        sort_by: str | None = None,
+        order: SortOrder = SortOrder.DESC,
+    ) -> tuple[list[UserInfo], int]:
+        """
+        取得使用者列表，支援搜尋、篩選、排序和分頁。
+
+        Args:
+            skip: 跳過的筆數
+            limit: 每頁筆數上限
+            search: 搜尋關鍵字 (搜尋 full_name, email)
+            role: 篩選角色
+            is_active: 篩選是否啟用
+            sort_by: 排序欄位 (email, created_at)
+            order: 排序方向
+
+        Returns:
+            tuple: (items, total)
+        """
+        query = self.db.query(UserInfo).filter(UserInfo.is_deleted.is_(False))
+
+        # 搜尋
+        search_fields = ["full_name", "email"]
+        query = apply_search(query, UserInfo, search_fields, search)
+
+        # 篩選
+        query = apply_filter(query, UserInfo, "role", role)
+        query = apply_filter(query, UserInfo, "is_active", is_active)
+
+        # 排序
+        allowed_sort_fields = ["email", "created_at"]
+        query = apply_sorting(query, UserInfo, sort_by, order, allowed_sort_fields)
+
+        # 分頁
+        return paginate(query, skip, limit)
 
     def update_user(self, user_id: int, user_in: UserUpdate) -> UserInfo:
         user = (

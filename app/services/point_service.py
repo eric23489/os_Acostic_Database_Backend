@@ -9,7 +9,9 @@ from app.models.audio import AudioInfo
 from app.models.deployment import DeploymentInfo
 from app.models.point import PointInfo
 from app.models.project import ProjectInfo
+from app.schemas.pagination import SortOrder
 from app.schemas.point import PointCreate, PointUpdate
+from app.utils.query import apply_filter, apply_search, apply_sorting, paginate
 
 logger = logging.getLogger(__name__)
 
@@ -49,15 +51,43 @@ class PointService:
         return point
 
     def get_points(
-        self, project_id: int, skip: int = 0, limit: int = 100
-    ) -> list[PointInfo]:
-        return (
-            self.db.query(PointInfo)
-            .filter(PointInfo.project_id == project_id, PointInfo.is_deleted.is_(False))
-            .offset(skip)
-            .limit(limit)
-            .all()
-        )
+        self,
+        skip: int = 0,
+        limit: int = 100,
+        project_id: int | None = None,
+        search: str | None = None,
+        sort_by: str | None = None,
+        order: SortOrder = SortOrder.DESC,
+    ) -> tuple[list[PointInfo], int]:
+        """
+        取得測點列表，支援搜尋、篩選、排序和分頁。
+
+        Args:
+            skip: 跳過的筆數
+            limit: 每頁筆數上限
+            project_id: 篩選專案 ID (選填)
+            search: 搜尋關鍵字 (搜尋 name, description)
+            sort_by: 排序欄位 (name, created_at)
+            order: 排序方向
+
+        Returns:
+            tuple: (items, total)
+        """
+        query = self.db.query(PointInfo).filter(PointInfo.is_deleted.is_(False))
+
+        # 篩選
+        query = apply_filter(query, PointInfo, "project_id", project_id)
+
+        # 搜尋
+        search_fields = ["name", "description"]
+        query = apply_search(query, PointInfo, search_fields, search)
+
+        # 排序
+        allowed_sort_fields = ["name", "created_at"]
+        query = apply_sorting(query, PointInfo, sort_by, order, allowed_sort_fields)
+
+        # 分頁
+        return paginate(query, skip, limit)
 
     def create_point(self, point_in: PointCreate) -> PointInfo:
         # Check unique constraint (project_id, name)

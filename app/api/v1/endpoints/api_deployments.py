@@ -1,4 +1,3 @@
-from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -12,20 +11,40 @@ from app.schemas.deployment import (
     DeploymentUpdate,
     DeploymentWithDetailsResponse,
 )
+from app.schemas.pagination import PaginatedResponse, SortOrder
 from app.services.deployment_service import DeploymentService
 
 router = APIRouter(prefix="/deployments", tags=["deployments"])
 
 
-@router.get("/", response_model=List[DeploymentResponse])
+@router.get("/", response_model=PaginatedResponse[DeploymentResponse])
 def get_deployments(
-    point_id: int,
     skip: int = 0,
     limit: int = 100,
+    point_id: int | None = None,
+    deployment_status: str | None = None,
+    sort_by: str | None = None,
+    order: SortOrder = SortOrder.DESC,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    return DeploymentService(db).get_deployments(point_id, skip=skip, limit=limit)
+    """
+    取得佈放列表。
+
+    - **point_id**: 篩選測點 ID (選填，不傳回傳所有)
+    - **deployment_status**: 篩選狀態
+    - **sort_by**: 排序欄位 (phase, created_at, deploy_time, return_time)
+    - **order**: 排序方向 (asc, desc)
+    """
+    items, total = DeploymentService(db).get_deployments(
+        skip=skip,
+        limit=limit,
+        point_id=point_id,
+        status=deployment_status,
+        sort_by=sort_by,
+        order=order,
+    )
+    return PaginatedResponse(items=items, total=total, skip=skip, limit=limit)
 
 
 @router.get("/{deployment_id}", response_model=DeploymentResponse)

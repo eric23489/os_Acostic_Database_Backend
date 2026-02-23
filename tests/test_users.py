@@ -53,11 +53,17 @@ def test_read_users_me(client, mock_current_user):
 def test_read_users_admin(client):
     with patch("app.api.v1.endpoints.api_users.UserService") as MockService:
         mock_service = MockService.return_value
-        mock_service.get_users.return_value = []
+        mock_service.get_users.return_value = ([], 0)
 
         response = client.get(f"{settings.api_prefix}/users/")
         assert response.status_code == 200
-        assert response.json() == []
+        data = response.json()
+        assert "items" in data
+        assert "total" in data
+        assert "skip" in data
+        assert "limit" in data
+        assert data["total"] == 0
+        assert data["items"] == []
 
 
 def test_read_users_forbidden(client):
