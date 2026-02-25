@@ -24,6 +24,7 @@ class Settings(BaseSettings):
 
     # App settings
     app_port: int = 8000
+    log_level: str = "INFO"
 
     # Auth settings
     secret_key: str

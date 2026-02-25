@@ -1,5 +1,20 @@
 # Feature: 多檔案上傳 (Batch Audio Upload)
 
+## 修改的相關檔案
+
+| 檔案 | 變更說明 |
+|------|----------|
+| `app/schemas/upload_job.py` | 移除 `FileInfo` Pydantic validator、新增 `SkippedFileInfo`、`UploadJobCreateResponse` 新增 `skipped_files` |
+| `app/services/upload_job_service.py` | `create_job()` 改為 per-file 驗證（格式 + SN）、部分成功收集、`cancel_job()` 補強清理 |
+| `app/api/v1/endpoints/api_audio_upload_jobs.py` | `create_upload_job` 改為動態 status code（201/207）、`cancel_upload_job` 傳入 `user_id` |
+| `app/schemas/audio.py` | 新增 Batch Schema：`AudioBatchItem`、`AudioBatchCreateRequest`、`AudioBatchResultItem`、`AudioBatchCreateResponse` |
+| `app/services/audio_service.py` | 新增 `create_audios_batch()`、`_get_existing_active_keys()`、`_get_existing_deleted_keys()` |
+| `app/api/v1/endpoints/api_audio.py` | 新增 `POST /batch` 路由 |
+| `tests/integration/test_audio_upload_integration.py` | 新增：invalid filename 207、SN 不存在 207、全部無效 400 測試 |
+| `tests/test_audio_batch.py` | 新增 +18 測試案例 (P0/P1/P2) |
+
+---
+
 ## 使用情境
 - **檔案數量**: ~800 個
 - **檔案大小**: 1.29GB/檔 (總計 ~1TB)
@@ -469,3 +484,210 @@ def create_audios_batch(
 
 1. **Phase 1**: 先完成 Batch API，可用簡單 PUT 測試
 2. **Phase 2**: 再加入 Multipart Upload，支援大檔案
+
+---
+
+## 設計確認：SN 驗證與部分成功（207）
+
+### 背景
+確認兩個設計問題後的修改方向：
+1. Recorder SN 需對應 RecorderInfo（不存在則 skip）
+2. 批次中含有錯誤 name 改為部分成功，不中斷整批
+
+### `app/schemas/upload_job.py` 修改
+
+**移除 `FileInfo` 的 Pydantic validator**（驗證移到 service 層）：
+```python
+# 移除這段
+@field_validator("name")
+@classmethod
+def validate_filename_format(cls, v: str) -> str:
+    ...
+```
+
+**新增 `SkippedFileInfo`**：
+```python
+class SkippedFileInfo(BaseModel):
+    name: str
+    reason: str
+```
+
+**`UploadJobCreateResponse` 新增 `skipped_files`**：
+```python
+class UploadJobCreateResponse(BaseModel):
+    job_id: str
+    deployment_id: int
+    status: str
+    total_files: int
+    tasks: list[UploadTaskInfo]
+    skipped_files: list[SkippedFileInfo] = []  # 新增
+```
+
+### `app/services/upload_job_service.py` - `create_job()` 新流程
+
+```
+舊流程（全有或全無）:
+  1. 驗證 deployment
+  2. 生成所有 object_keys
+  3. 批量查重（任一重複 → 400 整批失敗）
+  4. 批量建立 AudioInfo
+
+新流程（per-file skip）:
+  1. 驗證 deployment（不變，仍整批失敗）
+  2. Per-file 格式驗證（try parse_audio_filename）
+     - 失敗 → skipped_files（reason: "Invalid filename format"）
+  3. 批量查詢 RecorderInfo.sn（WHERE sn IN (...) AND is_deleted = false）
+     - SN 不在結果中 → skipped_files（reason: "Recorder SN not found"）
+  4. Per-file object_key 重複檢查（查 active + deleted）
+     - active 重複 → skipped_files（reason: "Already exists"）
+     - deleted 佔用 → skipped_files（reason: "Reserved by deleted record"）
+  5. 若 final_files 為空 → raise HTTPException 400（"All files skipped"）
+  6. 批量建立 AudioInfo、UploadJob、UploadTask（僅 final_files）
+  7. 回傳含 skipped_files 的 response
+```
+
+SN 批量查詢（步驟 3）：
+```python
+from app.models.recorder import RecorderInfo
+
+valid_sns = {parsed.recorder_sn for _, parsed in files_with_parsed}
+existing_sns = {
+    r[0]
+    for r in self.db.query(RecorderInfo.sn)
+    .filter(RecorderInfo.sn.in_(valid_sns), RecorderInfo.is_deleted.is_(False))
+    .all()
+}
+```
+
+### `app/api/v1/endpoints/api_audio_upload_jobs.py` - 動態 status code
+
+```python
+from fastapi import APIRouter, Depends, Response, status  # 新增 Response
+
+@router.post("/", response_model=UploadJobCreateResponse)  # 移除 status_code=201
+def create_upload_job(
+    request: UploadJobCreateRequest,
+    response: Response,  # 新增
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    result = UploadJobService(db).create_job(request, current_user.id)
+    response.status_code = (
+        status.HTTP_207_MULTI_STATUS if result.skipped_files else status.HTTP_201_CREATED
+    )
+    return result
+```
+
+### Response 範例
+
+全部成功（201）：
+```json
+{"job_id": "...", "total_files": 2, "tasks": [...], "skipped_files": []}
+```
+
+部分成功（207）：
+```json
+{
+  "job_id": "...",
+  "total_files": 1,
+  "tasks": [...],
+  "skipped_files": [
+    {"name": "bad_file.wav", "reason": "Invalid filename format: expected {sn}.{YYMMDDHHMMSS}.{ext}"},
+    {"name": "9999.240611130000.wav", "reason": "Recorder SN '9999' not found in system"}
+  ]
+}
+```
+
+全部 skip（400）：
+```json
+{"detail": "All files skipped: no valid files to upload"}
+```
+
+---
+
+## 設計確認：上傳中斷重新上傳
+
+### 兩種中斷情境
+
+#### 情境 A：斷點續傳（前端仍有 job_id）
+後端 API 已完整，前端只需實作此流程：
+```
+1. GET /audio-upload-jobs/{job_id}
+   → 取得各 task 的 status
+
+2. 對每個未完成的 task：
+
+   status = PENDING（尚未 init）:
+     → POST multipart/init → 正常走完上傳流程
+
+   status = MULTIPART_INIT / UPLOADING（已有部分 parts）:
+     → GET .../tasks/{task_id}/progress → 取得 remaining_parts
+     → POST multipart/urls（只傳 remaining_parts）
+     → 上傳 → part-complete → complete
+```
+
+**後端不需修改，此路徑已完備。**
+
+#### 情境 B：完全重頭來過
+```
+1. POST /audio-upload-jobs/{job_id}/cancel   （補強後）
+   → 中止所有 MinIO multipart parts
+   → 軟刪除所有關聯 AudioInfo
+   → Job 標記 CANCELLED
+
+2. DELETE /api/v1/audio/{audio_id}/permanent   （Admin）
+   → Hard delete AudioInfo，釋放 object_key 名稱
+
+3. POST /audio-upload-jobs/
+   → 重新建立任務，正常進行
+```
+
+### 現有缺口：`cancel_job` 不完整
+
+目前 `cancel_job()`（`upload_job_service.py:270`）只改 job 狀態，未處理：
+- MinIO 孤兒 parts（已初始化的 multipart upload 未 abort）
+- AudioInfo 仍是 `upload_status=pending`，`is_deleted=False`，導致重傳被 400 擋住
+
+### `app/services/upload_job_service.py` - `cancel_job()` 補強
+
+函式簽名新增 `user_id`：
+```python
+def cancel_job(self, job_id: str, user_id: int) -> None:
+    job = ...
+    if job.status in [JobStatus.COMPLETED, JobStatus.CANCELLED]:
+        return
+
+    bucket = job.deployment.point.project.name
+
+    for task in job.tasks:
+        # 1. Abort MinIO multipart（若已初始化）
+        if task.upload_id:
+            self.minio.abort_multipart_upload(bucket, task.object_key, task.upload_id)
+
+        # 2. 軟刪除 AudioInfo
+        audio = task.audio
+        if audio and not audio.is_deleted:
+            audio.is_deleted = True
+            audio.deleted_at = datetime.now(UTC)
+            audio.deleted_by = user_id
+
+        # 3. Task 標記失敗
+        task.status = TaskStatus.FAILED
+
+    job.status = JobStatus.CANCELLED
+    job.completed_at = datetime.now(UTC)
+    self.db.commit()
+```
+
+### `app/api/v1/endpoints/api_audio_upload_jobs.py` - cancel endpoint 補強
+
+```python
+@router.post("/{job_id}/cancel")
+def cancel_upload_job(
+    job_id: str,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    UploadJobService(db).cancel_job(job_id, current_user.id)  # 傳入 user_id
+    return {"status": "cancelled"}
+```
