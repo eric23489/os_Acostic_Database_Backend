@@ -16,6 +16,7 @@ from app.schemas.audio import (
     AudioBatchCreateResponse,
     AudioBatchResultItem,
 )
+from app.services.upload_job_service import UploadJobService
 
 
 # =============================================================================
@@ -289,3 +290,38 @@ class TestCreateAudiosBatchEndpoint:
                 ]},
             )
         assert res.status_code == 409
+
+
+# =============================================================================
+# _get_task IDOR 保護測試 (C9)
+# =============================================================================
+
+
+class TestGetTaskIDOR:
+    """_get_task 的 IDOR 保護：非擁有者取得 404，不洩漏資源是否存在。"""
+
+    def _make_db(self, result) -> MagicMock:
+        db = MagicMock()
+        db.query.return_value.join.return_value.filter.return_value.first.return_value = result
+        return db
+
+    def test_wrong_user_raises_404_not_403(self):
+        """其他使用者的 task → 404，避免洩漏資源存在。"""
+        db = self._make_db(result=None)
+        service = UploadJobService(db)
+
+        with pytest.raises(HTTPException) as exc_info:
+            service._get_task("job-1", "task-1", user_id=99)
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail == "Task not found"
+
+    def test_correct_user_returns_task(self):
+        """擁有者查詢自己的 task → 成功回傳。"""
+        task = MagicMock()
+        db = self._make_db(result=task)
+        service = UploadJobService(db)
+
+        result = service._get_task("job-1", "task-1", user_id=1)
+
+        assert result is task

@@ -425,7 +425,18 @@ class UploadJobService:
             job.status = JobStatus.COMPLETED
             job.completed_at = datetime.now(UTC)
 
-        self.db.commit()
+        try:
+            self.db.commit()
+        except Exception as e:
+            self.db.rollback()
+            logger.critical(
+                "complete_task DB commit failed. task_id=%s error=%s",
+                task_id, e,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to save task completion. Please retry.",
+            )
         logger.info("Completed simple upload for task %s", task_id)
 
     # =========================================================================
@@ -581,6 +592,9 @@ class UploadJobService:
         # 4. 讀取 WAV header，填入 metadata 並驗證（非關鍵，失敗不中斷）
         try:
             header_data = self.minio.read_object_range(bucket, task.object_key, 0, 43)
+        except ClientError:
+            logger.warning("Failed to read WAV header for %s", task.object_key)
+        else:
             wav_info = parse_wav_header(header_data)
 
             if wav_info.is_valid:
@@ -620,8 +634,6 @@ class UploadJobService:
 
                 if warnings:
                     audio.header_warning = "; ".join(warnings)
-        except Exception:
-            logger.warning("Failed to validate WAV header for %s", task.object_key)
 
         # 5. 更新 Job 計數
         job = task.job

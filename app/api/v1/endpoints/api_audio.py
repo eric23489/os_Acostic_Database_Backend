@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_admin_user, get_current_user
 from app.db.session import get_db
-from app.models.user import UserInfo, UserRole
+from app.models.user import UserInfo
 from app.schemas.audio import (
     AudioBatchCreateRequest,
     AudioBatchCreateResponse,
@@ -12,6 +12,7 @@ from app.schemas.audio import (
     AudioResponse,
     AudioUpdate,
     AudioWithDetailsResponse,
+    MessageResponse,
 )
 from app.schemas.pagination import PaginatedResponse, SortOrder
 from app.services.audio_service import AudioService
@@ -116,8 +117,7 @@ def restore_audio(
     db: Session = Depends(get_db),
     current_user: UserInfo = Depends(get_current_user),
 ) -> AudioResponse:
-    is_admin = current_user.role == UserRole.ADMIN.value
-    return AudioService(db).restore_audio(audio_id, current_user.id, is_admin)
+    return AudioService(db).restore_audio(audio_id, current_user)
 
 
 @router.post("/batch", response_model=AudioBatchCreateResponse)
@@ -143,12 +143,12 @@ def create_audios_batch(
     return result
 
 
-@router.delete("/{audio_id}/permanent", response_model=dict)
+@router.delete("/{audio_id}/permanent", response_model=MessageResponse)
 def hard_delete_audio(
     audio_id: int,
     db: Session = Depends(get_db),
     current_user: UserInfo = Depends(get_current_admin_user),
-) -> dict:
+) -> MessageResponse:
     """
     永久刪除單一 Audio。需要 Admin 權限。
 

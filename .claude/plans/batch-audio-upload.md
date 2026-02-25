@@ -7,11 +7,13 @@
 | `app/schemas/upload_job.py` | 移除 `FileInfo` Pydantic validator、新增 `SkippedFileInfo`、`UploadJobCreateResponse` 新增 `skipped_files` |
 | `app/services/upload_job_service.py` | `create_job()` 改為 per-file 驗證（格式 + SN）、部分成功收集、`cancel_job()` 補強清理；PR review 補強：C1 `complete_task()`、C2 IDOR 修復、C3 MinIO/DB 一致性 |
 | `app/api/v1/endpoints/api_audio_upload_jobs.py` | `create_upload_job` 改為動態 status code（201/207）、`cancel_upload_job` 傳入 `user_id`；PR review 補強：C1/C2 所有端點傳入 `user_id` |
-| `app/schemas/audio.py` | 新增 Batch Schema：`AudioBatchItem`、`AudioBatchCreateRequest`、`AudioBatchResultItem`、`AudioBatchCreateResponse`；PR review 補強：C5 `AudioBatchResultItem` 跨欄位不變量 |
-| `app/services/audio_service.py` | 新增 `create_audios_batch()`、`_get_existing_active_keys()`、`_get_existing_deleted_keys()`；PR review 補強：C4 IntegrityError 409、C6 auth 移至 service |
-| `app/api/v1/endpoints/api_audio.py` | 新增 `POST /batch` 路由；PR review 補強：C6 router 移除業務邏輯 |
+| `app/schemas/audio.py` | 新增 Batch Schema：`AudioBatchItem`、`AudioBatchCreateRequest`、`AudioBatchResultItem`、`AudioBatchCreateResponse`；PR#1 C5 跨欄位不變量；PR#2 新增 `MessageResponse` |
+| `app/services/audio_service.py` | 新增 `create_audios_batch()`、`_get_existing_active_keys()`、`_get_existing_deleted_keys()`；PR#1 C4 IntegrityError 409；PR#2 C1 `restore_audio` 簽名（接受 `UserInfo`）、C7 `hard_delete` MinIO 失敗 502、C8 `create_audios_batch` commit guard、I1 sort bug 修正（dict index） |
+| `app/services/upload_job_service.py` | `create_job()` per-file 驗證、`cancel_job()` 清理；PR#1 C1 `complete_task()`、C2 IDOR、C3 MinIO/DB 一致性；PR#2 C5 WAV header `except ClientError`、C6 `complete_task` commit guard |
+| `app/api/v1/endpoints/api_audio.py` | 新增 `POST /batch` 路由；PR#1 C6 router 移除業務邏輯；PR#2 C1 `restore_audio` 只傳 `current_user`、C2 `hard_delete` 改用 `MessageResponse` |
+| `app/api/v1/endpoints/api_audio_upload_jobs.py` | `create_upload_job` 動態 status code（201/207）；PR#1 C1/C2 所有端點傳入 `user_id` |
 | `tests/integration/test_audio_upload_integration.py` | 新增：invalid filename 207、SN 不存在 207、全部無效 400 測試 |
-| `tests/test_audio.py` | PR review 補強：C7 新增 18 測試（型別不變量、批次大小邊界、端點整合） |
+| `tests/test_audio.py` | PR#1 C7 新增 18 測試；PR#2 C9 新增 `TestGetTaskIDOR`（總計 20 tests） |
 
 ---
 
@@ -552,6 +554,60 @@ def validate_status_fields(self) -> "AudioBatchResultItem":
 - `TestAudioBatchResultItem`（7 tests）：驗證 created/skipped/failed 的欄位不變量
 - `TestAudioBatchCreateRequest`（4 tests）：驗證 0/1/100/101 筆邊界
 - `TestCreateAudiosBatchEndpoint`（7 tests）：201 全建立、207 部分跳過、404 deployment、422 驗證失敗、207 軟刪除鍵跳過、409 並行衝突
+
+---
+
+## 第二次 PR Review 修復記錄 (PR #16 Round 2)
+
+第二次 review 由 4 個 Agent 並行執行，發現 9 個 Critical/Important issue，全部已修復。
+
+### C1 — Router 含業務邏輯（restore_audio is_admin）
+
+**問題**: `restore_audio` router 計算 `is_admin = current_user.role == UserRole.ADMIN.value`，業務邏輯外洩。
+
+**修復**: `restore_audio` service 簽名改為 `(audio_id, current_user: UserInfo)`，is_admin 判斷移入 service；router 直接傳 `current_user`。
+
+### C2 — response_model=dict
+
+**問題**: `hard_delete_audio` 端點使用 `response_model=dict`，繞過 Pydantic 序列化與文件生成。
+
+**修復**: 新增 `MessageResponse(message: str)` schema，`hard_delete_audio` 改用 `response_model=MessageResponse`。
+
+### C5 — WAV header except Exception 吞噬非預期錯誤
+
+**問題**: `complete_multipart` 中 WAV header 驗證的 `except Exception` 同時包覆 MinIO 網路呼叫與屬性存取，`recorder=None` 等程式錯誤會被靜默吞噬。
+
+**修復**: `except ClientError` 只捕捉 MinIO 呼叫失敗；WAV 屬性存取移至 `else` 子句，程式錯誤會正確傳播。
+
+### C6 — complete_task DB commit 未保護
+
+**問題**: `complete_task`（簡單上傳路徑）的 `db.commit()` 無 try/except，DB 失敗後狀態不一致。
+
+**修復**: 包覆 `try/except Exception`，失敗時 `logger.critical` + HTTP 500，與 `complete_multipart` 保持一致。
+
+### C7 — hard_delete MinIO 失敗後繼續刪除 DB
+
+**問題**: `hard_delete_audio` 若 MinIO 刪除失敗，原程式靜默繼續刪除 DB 記錄，造成永久孤兒物件。
+
+**修復**: 使用 `MinioService()`，MinIO 失敗 `raise HTTPException(502)`，中止 DB 刪除。
+
+### C8 — create_audios_batch commit 未保護
+
+**問題**: `create_audios_batch` 的 `db.commit()` 無 try/except，flush 後取得的 ID 在 commit 失敗後無法使用。
+
+**修復**: 包覆 `try/except Exception`，失敗時 rollback + logger.error + HTTP 500。
+
+### C9 — 缺少 _get_task IDOR 測試
+
+**問題**: `_get_task` 的 IDOR 防護（回傳 404 而非 403）無測試覆蓋。
+
+**修復**: 新增 `TestGetTaskIDOR`：驗證錯誤使用者 → 404、正確使用者 → task 物件。
+
+### I1 — 批次內重複 object_key 排序錯誤
+
+**問題**: `create_audios_batch` 使用 `results.sort(key=lambda r: object_keys.index(r.object_key))`，`list.index()` 永遠回傳第一個出現位置，導致重複 key 的後續項目排序錯誤。
+
+**修復**: 改用 `indexed_results: dict[int, AudioBatchResultItem]` 以原始 loop index 為 key，最後以 `[indexed_results[i] for i in range(len(request.audios))]` 重建順序。
 
 ---
 

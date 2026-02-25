@@ -176,3 +176,7 @@ class AudioBatchCreateResponse(BaseModel):
     skipped_count: int
     failed_count: int
     results: list[AudioBatchResultItem]
+
+
+class MessageResponse(BaseModel):
+    message: str

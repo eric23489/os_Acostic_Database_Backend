@@ -5,12 +5,14 @@ from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
-from app.core.minio import get_s3_client
-from app.enums.enums import UploadStatus
+from botocore.exceptions import ClientError
+
+from app.enums.enums import UploadStatus, UserRole
 from app.models.audio import AudioInfo
 from app.models.deployment import DeploymentInfo
 from app.models.point import PointInfo
 from app.models.project import ProjectInfo
+from app.models.user import UserInfo
 from app.schemas.audio import (
     AudioBatchCreateRequest,
     AudioBatchCreateResponse,
@@ -158,16 +160,13 @@ class AudioService:
         self.db.refresh(audio)
         return audio
 
-    def restore_audio(
-        self, audio_id: int, current_user_id: int, is_admin: bool
-    ) -> AudioInfo:
+    def restore_audio(self, audio_id: int, current_user: UserInfo) -> AudioInfo:
         """
         還原軟刪除的 Audio。僅允許原刪除者或 Admin 執行。
 
         Args:
             audio_id: Audio ID
-            current_user_id: 執行還原的使用者 ID
-            is_admin: 是否為 Admin
+            current_user: 執行還原的使用者
         """
         audio = self.db.query(AudioInfo).filter(AudioInfo.id == audio_id).first()
         if not audio:
@@ -176,7 +175,8 @@ class AudioService:
                 detail="Audio not found",
             )
 
-        if not is_admin and current_user_id != audio.deleted_by:
+        is_admin = current_user.role == UserRole.ADMIN.value
+        if not is_admin and current_user.id != audio.deleted_by:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Only the deleter or admin can restore this resource",
@@ -259,11 +259,19 @@ class AudioService:
         bucket_name = project.name
 
         # 刪除 MinIO 物件
-        s3_client = get_s3_client()
+        minio_service = MinioService()
         try:
-            s3_client.delete_object(Bucket=bucket_name, Key=audio.object_key)
-        except Exception as e:
-            logger.warning(f"Failed to delete object {audio.object_key}: {e}")
+            minio_service.delete_object(bucket_name, audio.object_key)
+        except ClientError as e:
+            logger.error(
+                "Failed to delete MinIO object during hard delete. "
+                "object_key=%s bucket=%s error=%s",
+                audio.object_key, bucket_name, e,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Failed to delete file from storage. Database record was not deleted.",
+            )
 
         # 刪除 DB 記錄
         self.db.query(AudioInfo).filter(AudioInfo.id == audio_id).delete()
@@ -310,19 +318,17 @@ class AudioService:
         active_keys = self._get_existing_active_keys(set(object_keys))
         deleted_keys = self._get_existing_deleted_keys(set(object_keys))
 
-        results: list[AudioBatchResultItem] = []
+        indexed_results: dict[int, AudioBatchResultItem] = {}
         to_create: list[tuple[int, AudioInfo]] = []  # (index, AudioInfo)
         seen_keys: set[str] = set()
 
         for idx, item in enumerate(request.audios):
             if item.object_key in seen_keys:
-                results.append(
-                    AudioBatchResultItem(
-                        file_name=item.file_name,
-                        object_key=item.object_key,
-                        status="skipped",
-                        reason="Duplicate object_key within batch",
-                    )
+                indexed_results[idx] = AudioBatchResultItem(
+                    file_name=item.file_name,
+                    object_key=item.object_key,
+                    status="skipped",
+                    reason="Duplicate object_key within batch",
                 )
                 continue
 
@@ -337,25 +343,21 @@ class AudioService:
                     )
                     .scalar()
                 )
-                results.append(
-                    AudioBatchResultItem(
-                        file_name=item.file_name,
-                        object_key=item.object_key,
-                        status="skipped",
-                        audio_id=existing,
-                        reason="Already exists",
-                    )
+                indexed_results[idx] = AudioBatchResultItem(
+                    file_name=item.file_name,
+                    object_key=item.object_key,
+                    status="skipped",
+                    audio_id=existing,
+                    reason="Already exists",
                 )
                 continue
 
             if item.object_key in deleted_keys:
-                results.append(
-                    AudioBatchResultItem(
-                        file_name=item.file_name,
-                        object_key=item.object_key,
-                        status="skipped",
-                        reason="Reserved by deleted record. Hard delete to release.",
-                    )
+                indexed_results[idx] = AudioBatchResultItem(
+                    file_name=item.file_name,
+                    object_key=item.object_key,
+                    status="skipped",
+                    reason="Reserved by deleted record. Hard delete to release.",
                 )
                 continue
 
@@ -395,21 +397,29 @@ class AudioService:
         # 補充 created 結果（flush 後才有 ID）
         for idx, audio in to_create:
             item = request.audios[idx]
-            results.append(
-                AudioBatchResultItem(
-                    file_name=item.file_name,
-                    object_key=item.object_key,
-                    status="created",
-                    audio_id=audio.id,
-                    reason=None,
-                )
+            indexed_results[idx] = AudioBatchResultItem(
+                file_name=item.file_name,
+                object_key=item.object_key,
+                status="created",
+                audio_id=audio.id,
             )
 
-        self.db.commit()
+        # C8：commit 失敗代表 DB 問題，已 flush 的 ID 無法使用
+        try:
+            self.db.commit()
+        except Exception as e:
+            self.db.rollback()
+            logger.error(
+                "create_audios_batch commit failed. deployment_id=%s error=%s",
+                deployment_id, e,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to save audio records. Please retry.",
+            )
 
-        # 依照原始順序排列結果
-        results.sort(key=lambda r: object_keys.index(r.object_key))
-
+        # 依照原始順序重建結果列表，正確處理 batch 內重複 key 的排序
+        results = [indexed_results[i] for i in range(len(request.audios))]
         success_count = sum(1 for r in results if r.status == "created")
         skipped_count = sum(1 for r in results if r.status == "skipped")
         failed_count = sum(1 for r in results if r.status == "failed")
