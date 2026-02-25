@@ -17,12 +17,14 @@ from sqlalchemy.orm import Session
 from app.enums.enums import JobStatus, TaskStatus, UploadStatus
 from app.models.audio import AudioInfo
 from app.models.deployment import DeploymentInfo
+from app.models.recorder import RecorderInfo
 from app.models.upload_job import UploadJob, UploadTask
 from app.schemas.upload_job import (
     MultipartInitResponse,
     MultipartPartUrl,
     MultipartUrlsResponse,
     PartCompleteRequest,
+    SkippedFileInfo,
     TaskProgressResponse,
     TaskStatusInfo,
     UploadJobCreateRequest,
@@ -82,91 +84,104 @@ class UploadJobService:
 
         bucket = deployment.point.project.name
         point_name = deployment.point.name
-        expected_recorder_sn = deployment.recorder.sn
 
         # 确保 bucket 存在
         self.minio.create_bucket(bucket)
 
-        # 2. 解析档名、验证 recorder SN、生成 object_keys 并检查重复
-        skipped_files = []
-        valid_files = []
+        # 2. Per-file 格式驗證
+        skipped_files: list[SkippedFileInfo] = []
+        format_valid_files = []
 
         for file_info in request.files:
             try:
                 parsed = parse_audio_filename(file_info.name)
+                format_valid_files.append((file_info, parsed))
             except ValueError:
                 skipped_files.append(
-                    {
-                        "name": file_info.name,
-                        "reason": (
-                            "Invalid filename format:"
-                            " expected {sn}.{YYMMDDHHMMSS}.{ext}"
-                        ),
-                    }
+                    SkippedFileInfo(
+                        name=file_info.name,
+                        reason="Invalid filename format: expected {sn}.{YYMMDDHHMMSS}.{ext}",
+                    )
                 )
-                continue
 
-            if parsed.recorder_sn != expected_recorder_sn:
+        # 3. 批量查詢 RecorderInfo SN（確認 SN 已在系統中登錄）
+        candidate_sns = {parsed.recorder_sn for _, parsed in format_valid_files}
+        existing_sns: set[str] = set()
+        if candidate_sns:
+            existing_sns = {
+                r[0]
+                for r in self.db.query(RecorderInfo.sn)
+                .filter(
+                    RecorderInfo.sn.in_(candidate_sns),
+                    RecorderInfo.is_deleted.is_(False),
+                )
+                .all()
+            }
+
+        sn_valid_files = []
+        for file_info, parsed in format_valid_files:
+            if parsed.recorder_sn not in existing_sns:
                 skipped_files.append(
-                    {
-                        "name": file_info.name,
-                        "reason": (
-                            f"Recorder SN mismatch: filename has"
-                            f" '{parsed.recorder_sn}',"
-                            f" deployment expects '{expected_recorder_sn}'"
-                        ),
-                    }
+                    SkippedFileInfo(
+                        name=file_info.name,
+                        reason=f"Recorder SN '{parsed.recorder_sn}' not found in system",
+                    )
                 )
-                continue
+            else:
+                sn_valid_files.append((file_info, parsed))
 
-            valid_files.append((file_info, parsed))
+        # 4. Per-file object_key 重複檢查
+        candidate_keys = [
+            generate_object_key(point_name, file_info.name)
+            for file_info, _ in sn_valid_files
+        ]
+        active_keys: set[str] = set()
+        deleted_keys: set[str] = set()
+        if candidate_keys:
+            active_keys = {
+                r[0]
+                for r in self.db.query(AudioInfo.object_key)
+                .filter(
+                    AudioInfo.object_key.in_(candidate_keys),
+                    AudioInfo.is_deleted.is_(False),
+                )
+                .all()
+            }
+            deleted_keys = {
+                r[0]
+                for r in self.db.query(AudioInfo.object_key)
+                .filter(
+                    AudioInfo.object_key.in_(candidate_keys),
+                    AudioInfo.is_deleted.is_(True),
+                )
+                .all()
+            }
 
+        valid_files = []
+        for file_info, parsed in sn_valid_files:
+            object_key = generate_object_key(point_name, file_info.name)
+            if object_key in active_keys:
+                skipped_files.append(
+                    SkippedFileInfo(name=file_info.name, reason="Already exists")
+                )
+            elif object_key in deleted_keys:
+                skipped_files.append(
+                    SkippedFileInfo(
+                        name=file_info.name,
+                        reason="Reserved by deleted record. Hard delete to release.",
+                    )
+                )
+            else:
+                valid_files.append((file_info, parsed))
+
+        # 5. 若全部 skip 則整批失敗
         if not valid_files:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"No valid files to upload. Skipped: {skipped_files}",
+                detail="All files skipped: no valid files to upload",
             )
 
-        object_keys = [
-            generate_object_key(point_name, file_info.name)
-            for file_info, _ in valid_files
-        ]
-
-        # 检查活跃记录重复
-        existing_active = (
-            self.db.query(AudioInfo.object_key)
-            .filter(
-                AudioInfo.object_key.in_(object_keys),
-                AudioInfo.is_deleted.is_(False),
-            )
-            .all()
-        )
-
-        if existing_active:
-            duplicates = [r[0] for r in existing_active[:5]]
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Files already exist: {duplicates}...",
-            )
-
-        # 检查软删除记录占用
-        existing_deleted = (
-            self.db.query(AudioInfo.object_key)
-            .filter(
-                AudioInfo.object_key.in_(object_keys),
-                AudioInfo.is_deleted.is_(True),
-            )
-            .all()
-        )
-
-        if existing_deleted:
-            reserved = [r[0] for r in existing_deleted[:5]]
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Files reserved by deleted records: {reserved}...",
-            )
-
-        # 3. 批量建立 AudioInfo (upload_status = pending)
+        # 6. 批量建立 AudioInfo (upload_status = pending)
         audio_map: dict[str, AudioInfo] = {}
 
         for file_info, parsed in valid_files:
@@ -237,6 +252,7 @@ class UploadJobService:
             status=job.status,
             total_files=job.total_files,
             tasks=tasks_info,
+            skipped_files=skipped_files,
         )
 
     def get_job_status(self, job_id: str) -> UploadJobStatusResponse:

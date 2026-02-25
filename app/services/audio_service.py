@@ -10,7 +10,14 @@ from app.models.audio import AudioInfo
 from app.models.deployment import DeploymentInfo
 from app.models.point import PointInfo
 from app.models.project import ProjectInfo
-from app.schemas.audio import AudioCreate, AudioDownloadUrlResponse, AudioUpdate
+from app.schemas.audio import (
+    AudioBatchCreateRequest,
+    AudioBatchCreateResponse,
+    AudioBatchResultItem,
+    AudioCreate,
+    AudioDownloadUrlResponse,
+    AudioUpdate,
+)
 from app.schemas.pagination import SortOrder
 from app.services.minio_service import MinioService
 from app.utils.query import apply_filter, apply_search, apply_sorting, paginate
@@ -246,6 +253,174 @@ class AudioService:
         self.db.commit()
 
         return {"message": "Audio permanently deleted"}
+
+    def create_audios_batch(
+        self,
+        request: AudioBatchCreateRequest,
+    ) -> AudioBatchCreateResponse:
+        """
+        批量建立 AudioInfo。
+
+        使用冪等設計：
+        - 活躍的 object_key 已存在 → skipped，回傳既有 audio_id
+        - 軟刪除的 object_key 已佔用 → skipped，需 hard delete 釋放
+        - 批次內重複的 object_key → 第一筆通過，後續 skipped
+        - 全部成功回傳 201，部分跳過由 router 回傳 207
+
+        Args:
+            request: 批量建立請求
+
+        Returns:
+            AudioBatchCreateResponse
+        """
+        deployment_id = request.deployment_id
+
+        deployment = (
+            self.db.query(DeploymentInfo)
+            .filter(
+                DeploymentInfo.id == deployment_id,
+                DeploymentInfo.is_deleted.is_(False),
+            )
+            .first()
+        )
+        if not deployment:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Deployment not found",
+            )
+
+        object_keys = [item.object_key for item in request.audios]
+        active_keys = self._get_existing_active_keys(set(object_keys))
+        deleted_keys = self._get_existing_deleted_keys(set(object_keys))
+
+        results: list[AudioBatchResultItem] = []
+        to_create: list[tuple[int, AudioInfo]] = []  # (index, AudioInfo)
+        seen_keys: set[str] = set()
+
+        for idx, item in enumerate(request.audios):
+            if item.object_key in seen_keys:
+                results.append(
+                    AudioBatchResultItem(
+                        file_name=item.file_name,
+                        object_key=item.object_key,
+                        status="skipped",
+                        reason="Duplicate object_key within batch",
+                    )
+                )
+                continue
+
+            seen_keys.add(item.object_key)
+
+            if item.object_key in active_keys:
+                existing = (
+                    self.db.query(AudioInfo.id)
+                    .filter(
+                        AudioInfo.object_key == item.object_key,
+                        AudioInfo.is_deleted.is_(False),
+                    )
+                    .scalar()
+                )
+                results.append(
+                    AudioBatchResultItem(
+                        file_name=item.file_name,
+                        object_key=item.object_key,
+                        status="skipped",
+                        audio_id=existing,
+                        reason="Already exists",
+                    )
+                )
+                continue
+
+            if item.object_key in deleted_keys:
+                results.append(
+                    AudioBatchResultItem(
+                        file_name=item.file_name,
+                        object_key=item.object_key,
+                        status="skipped",
+                        reason="Reserved by deleted record. Hard delete to release.",
+                    )
+                )
+                continue
+
+            audio = AudioInfo(
+                deployment_id=deployment_id,
+                file_name=item.file_name,
+                object_key=item.object_key,
+                file_format=item.file_format,
+                file_size=item.file_size,
+                checksum=item.checksum,
+                record_time=item.record_time,
+                record_duration=item.record_duration,
+                fs=item.fs,
+                recorder_channel=item.recorder_channel,
+                audio_channels=item.audio_channels,
+                target=item.target,
+                target_type=item.target_type,
+                meta_json=item.meta_json,
+                is_cold_storage=item.is_cold_storage,
+            )
+            self.db.add(audio)
+            to_create.append((idx, audio))
+
+        self.db.flush()
+
+        # 補充 created 結果（flush 後才有 ID）
+        for idx, audio in to_create:
+            item = request.audios[idx]
+            results.append(
+                AudioBatchResultItem(
+                    file_name=item.file_name,
+                    object_key=item.object_key,
+                    status="created",
+                    audio_id=audio.id,
+                )
+            )
+
+        self.db.commit()
+
+        # 依照原始順序排列結果
+        results.sort(key=lambda r: object_keys.index(r.object_key))
+
+        success_count = sum(1 for r in results if r.status == "created")
+        skipped_count = sum(1 for r in results if r.status == "skipped")
+        failed_count = sum(1 for r in results if r.status == "failed")
+
+        return AudioBatchCreateResponse(
+            deployment_id=deployment_id,
+            total_count=len(results),
+            success_count=success_count,
+            skipped_count=skipped_count,
+            failed_count=failed_count,
+            results=results,
+        )
+
+    def _get_existing_active_keys(self, object_keys: set[str]) -> set[str]:
+        """批量查詢已存在的活躍 object_keys。"""
+        if not object_keys:
+            return set()
+        return {
+            r[0]
+            for r in self.db.query(AudioInfo.object_key)
+            .filter(
+                AudioInfo.object_key.in_(object_keys),
+                AudioInfo.is_deleted.is_(False),
+            )
+            .all()
+        }
+
+    def _get_existing_deleted_keys(self, object_keys: set[str]) -> set[str]:
+        """批量查詢已軟刪除的 object_keys。"""
+        if not object_keys:
+            return set()
+        return {
+            r[0]
+            for r in self.db.query(AudioInfo.object_key)
+            .filter(
+                AudioInfo.object_key.in_(object_keys),
+                AudioInfo.is_deleted.is_(True),
+            )
+            .all()
+        }
 
     def get_download_url(
         self, audio_id: int, expires_in: int = 3600

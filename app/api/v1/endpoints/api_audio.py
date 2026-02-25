@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_user
@@ -6,6 +6,8 @@ from app.db.session import get_db
 from app.models.audio import AudioInfo
 from app.models.user import UserRole
 from app.schemas.audio import (
+    AudioBatchCreateRequest,
+    AudioBatchCreateResponse,
     AudioCreate,
     AudioDownloadUrlResponse,
     AudioResponse,
@@ -130,6 +132,29 @@ def restore_audio(
             detail="Only the deleter or admin can restore this resource",
         )
     return AudioService(db).restore_audio(audio_id)
+
+
+@router.post("/batch", response_model=AudioBatchCreateResponse)
+def create_audios_batch(
+    request: AudioBatchCreateRequest,
+    response: Response,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """
+    批量建立 AudioInfo。
+
+    - 全部成功回傳 201
+    - 部分跳過回傳 207
+    - 冪等設計：重複的 object_key 回傳 skipped
+    """
+    result = AudioService(db).create_audios_batch(request)
+    response.status_code = (
+        status.HTTP_207_MULTI_STATUS
+        if result.skipped_count > 0 or result.failed_count > 0
+        else status.HTTP_201_CREATED
+    )
+    return result
 
 
 @router.delete("/{audio_id}/permanent", response_model=dict)

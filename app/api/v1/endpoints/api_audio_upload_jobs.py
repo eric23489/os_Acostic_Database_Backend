@@ -1,6 +1,6 @@
 """Audio Upload Jobs API endpoints."""
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_user
@@ -27,13 +27,10 @@ router = APIRouter(prefix="/audio-upload-jobs", tags=["audio-upload-jobs"])
 # =============================================================================
 
 
-@router.post(
-    "/",
-    response_model=UploadJobCreateResponse,
-    status_code=status.HTTP_201_CREATED,
-)
+@router.post("/", response_model=UploadJobCreateResponse)
 def create_upload_job(
     request: UploadJobCreateRequest,
+    response: Response,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
@@ -43,8 +40,13 @@ def create_upload_job(
     - 验证 deployment 存在
     - 批量建立 AudioInfo (upload_status = pending)
     - 回传任务 ID 和档案资讯
+    - 全部成功回傳 201，部分跳過回傳 207
     """
-    return UploadJobService(db).create_job(request, current_user.id)
+    result = UploadJobService(db).create_job(request, current_user.id)
+    response.status_code = (
+        status.HTTP_207_MULTI_STATUS if result.skipped_files else status.HTTP_201_CREATED
+    )
+    return result
 
 
 @router.get("/{job_id}", response_model=UploadJobStatusResponse)

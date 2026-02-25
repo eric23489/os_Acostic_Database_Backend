@@ -4,7 +4,6 @@
 用于批量音档上传的请求和响应模型。
 """
 
-import re
 from datetime import datetime
 
 from pydantic import BaseModel, field_validator
@@ -17,17 +16,12 @@ class FileInfo(BaseModel):
     size: int | None = None
     checksum: str | None = None
 
-    @field_validator("name")
-    @classmethod
-    def validate_filename_format(cls, v: str) -> str:
-        """验证档名格式符合 {sn}.{YYMMDDHHMMSS}.wav"""
-        pattern = r"^\d+\.\d{12}(?:\.\w+)?$"
-        if not re.match(pattern, v):
-            raise ValueError(
-                f"Invalid filename format: {v}. "
-                "Expected: {{recorder_sn}}.{{YYMMDDHHMMSS}}.{{ext}}"
-            )
-        return v
+
+class SkippedFileInfo(BaseModel):
+    """被跳過的檔案資訊。"""
+
+    name: str
+    reason: str
 
 
 class UploadJobCreateRequest(BaseModel):
@@ -64,6 +58,7 @@ class UploadJobCreateResponse(BaseModel):
     status: str
     total_files: int
     tasks: list[UploadTaskInfo]
+    skipped_files: list[SkippedFileInfo] = []
 
 
 class TaskCompleteRequest(BaseModel):

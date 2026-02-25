@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, field_serializer, field_validator
 
@@ -105,3 +105,65 @@ class AudioDownloadUrlResponse(BaseModel):
     expires_in: int
     file_name: str
     file_size: int | None
+
+
+# =============================================================================
+# Batch Create Schemas
+# =============================================================================
+
+
+class AudioBatchItem(BaseModel):
+    """單一 Audio 批量建立項目，deployment_id 由外層提供。"""
+
+    file_name: str
+    object_key: str
+    file_format: str | None = "wav"
+    file_size: int | None = None
+    checksum: str | None = None
+    record_time: datetime | None = None
+    record_duration: float | None = None
+    fs: int | None = None
+    recorder_channel: int | None = 0
+    audio_channels: int | None = 1
+    target: str | None = None
+    target_type: int | None = None
+    meta_json: dict[str, Any] | None = None
+    is_cold_storage: bool | None = False
+
+
+class AudioBatchCreateRequest(BaseModel):
+    """批量建立 Audio 請求。"""
+
+    deployment_id: int
+    audios: list[AudioBatchItem]
+
+    @field_validator("audios")
+    @classmethod
+    def validate_batch_size(cls, v: list[AudioBatchItem]) -> list[AudioBatchItem]:
+        """驗證批次大小介於 1 到 100 筆。"""
+        if len(v) == 0:
+            raise ValueError("At least 1 audio required")
+        if len(v) > 100:
+            raise ValueError("Maximum 100 audios per batch")
+        return v
+
+
+class AudioBatchResultItem(BaseModel):
+    """批量建立單一結果。"""
+
+    file_name: str
+    object_key: str
+    status: Literal["created", "skipped", "failed"]
+    audio_id: int | None = None
+    reason: str | None = None
+
+
+class AudioBatchCreateResponse(BaseModel):
+    """批量建立 Audio 回應。"""
+
+    deployment_id: int
+    total_count: int
+    success_count: int
+    skipped_count: int
+    failed_count: int
+    results: list[AudioBatchResultItem]

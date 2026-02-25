@@ -88,9 +88,11 @@
 
 ## 7. 開發狀態
 - 目前版本: Phase 3 完成
-- 開發歷程: `.claude/docs/changelog.md`
+- 開發歷程: `.claude/docs/changelog.md`,`todo.md`
 
 ## 8. 設計模式 (Design Patterns)
+- 開始實作前更新相`.claude.md/plans`內對應的plan，若沒有則建立，plan要有修改,新增的檔案列表
+- 完成後更新`changelog.md`,`todo.md`
 
 ### 軟刪除 (Soft Delete)
 所有主要 Model 使用軟刪除模式：
@@ -122,3 +124,4 @@ Index("uq_xxx_active", "field", unique=True, postgresql_where=(is_deleted.is_(Fa
 ## 9. Claude回覆內容
 - 中文
 - 不使用emoji
+
