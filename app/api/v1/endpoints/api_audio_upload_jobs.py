@@ -75,7 +75,7 @@ def cancel_upload_job(
     current_user=Depends(get_current_user),
 ):
     """取消上传任务。"""
-    UploadJobService(db).cancel_job(job_id)
+    UploadJobService(db).cancel_job(job_id, current_user.id)
     return {"status": "cancelled"}
 
 
@@ -144,7 +144,9 @@ def get_multipart_urls(
     - 前端可分批请求 (例如一次 5 个)
     - 支援重试失败的 parts
     """
-    return UploadJobService(db).get_multipart_urls(job_id, task_id, request.part_numbers)
+    return UploadJobService(db).get_multipart_urls(
+        job_id, task_id, request.part_numbers
+    )
 
 
 @router.post("/{job_id}/tasks/{task_id}/multipart/part-complete")

@@ -1,16 +1,17 @@
 from sqlalchemy import (
-    Column,
-    Integer,
-    String,
-    Float,
-    Text,
-    DateTime,
-    SmallInteger,
     Boolean,
+    Column,
+    DateTime,
+    Float,
     Index,
+    Integer,
+    SmallInteger,
+    String,
+    Text,
     text,
 )
 from sqlalchemy.sql import func
+
 from app.db.base import Base
 from app.enums.enums import RecorderStatus
 
@@ -28,6 +29,7 @@ class RecorderInfo(Base):
     status = Column(String(50), default=RecorderStatus.IN_SERVICE.value)
     owner = Column(String(100), default="Ocean Sound")
     recorder_channels = Column(SmallInteger, default=1)
+    bits = Column(SmallInteger, default=16)
     description = Column(Text)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(

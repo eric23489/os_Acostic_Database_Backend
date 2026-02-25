@@ -170,7 +170,7 @@ class MinioService:
         key: str,
         upload_id: str,
         parts: list[dict],
-    ) -> None:
+    ) -> str:
         """
         完成分段上传，合并所有 parts。
 
@@ -179,14 +179,36 @@ class MinioService:
             key: Object key
             upload_id: 分段上传 ID
             parts: Part 列表 [{"PartNumber": 1, "ETag": "xxx"}, ...]
+
+        Returns:
+            ETag of the completed object (stripped of quotes)
         """
-        self.s3_client.complete_multipart_upload(
+        response = self.s3_client.complete_multipart_upload(
             Bucket=bucket,
             Key=key,
             UploadId=upload_id,
             MultipartUpload={"Parts": parts},
         )
         logger.info(f"Completed multipart upload: {bucket}/{key}")
+        return response["ETag"].strip('"')
+
+    def read_object_range(self, bucket: str, key: str, start: int, end: int) -> bytes:
+        """
+        讀取物件指定 byte range。
+
+        Args:
+            bucket: Bucket 名称
+            key: Object key
+            start: 起始 byte（含）
+            end: 結束 byte（含）
+
+        Returns:
+            指定範圍的 bytes
+        """
+        response = self.s3_client.get_object(
+            Bucket=bucket, Key=key, Range=f"bytes={start}-{end}"
+        )
+        return response["Body"].read()
 
     def abort_multipart_upload(
         self, bucket: str, key: str, upload_id: str

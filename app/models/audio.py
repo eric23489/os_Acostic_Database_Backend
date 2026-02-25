@@ -1,14 +1,14 @@
 from sqlalchemy import (
+    JSON,
+    BigInteger,
+    Boolean,
     Column,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
     Integer,
     String,
-    Float,
-    DateTime,
-    ForeignKey,
-    JSON,
-    Boolean,
-    BigInteger,
-    Index,
     text,
 )
 from sqlalchemy.orm import relationship
@@ -26,6 +26,7 @@ class AudioInfo(Base):
     )
     deployment = relationship("DeploymentInfo")
     file_name = Column(String(255), nullable=False)
+    recorder_sn = Column(String(50), nullable=True, index=True)
     object_key = Column(String(1024), nullable=False)
     file_format = Column(String(10))
     file_size = Column(BigInteger)
@@ -39,6 +40,10 @@ class AudioInfo(Base):
     target_type = Column(Integer)
     meta_json = Column(JSON)
     is_cold_storage = Column(Boolean, default=False)
+    is_for_report = Column(
+        Boolean, default=False, nullable=False, server_default=text("false")
+    )
+    header_warning = Column(String(500), nullable=True)
     updated_at = Column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )

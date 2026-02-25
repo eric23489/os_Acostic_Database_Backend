@@ -33,6 +33,7 @@ from app.schemas.upload_job import (
 )
 from app.services.minio_service import MinioService
 from app.utils.audio_path import generate_object_key, parse_audio_filename
+from app.utils.wav_header import parse_wav_header
 
 logger = logging.getLogger(__name__)
 
@@ -81,15 +82,55 @@ class UploadJobService:
 
         bucket = deployment.point.project.name
         point_name = deployment.point.name
+        expected_recorder_sn = deployment.recorder.sn
 
         # 确保 bucket 存在
         self.minio.create_bucket(bucket)
 
-        # 2. 生成所有 object_keys 并检查重复
-        object_keys = []
+        # 2. 解析档名、验证 recorder SN、生成 object_keys 并检查重复
+        skipped_files = []
+        valid_files = []
+
         for file_info in request.files:
-            object_key = generate_object_key(point_name, file_info.name)
-            object_keys.append(object_key)
+            try:
+                parsed = parse_audio_filename(file_info.name)
+            except ValueError:
+                skipped_files.append(
+                    {
+                        "name": file_info.name,
+                        "reason": (
+                            "Invalid filename format:"
+                            " expected {sn}.{YYMMDDHHMMSS}.{ext}"
+                        ),
+                    }
+                )
+                continue
+
+            if parsed.recorder_sn != expected_recorder_sn:
+                skipped_files.append(
+                    {
+                        "name": file_info.name,
+                        "reason": (
+                            f"Recorder SN mismatch: filename has"
+                            f" '{parsed.recorder_sn}',"
+                            f" deployment expects '{expected_recorder_sn}'"
+                        ),
+                    }
+                )
+                continue
+
+            valid_files.append((file_info, parsed))
+
+        if not valid_files:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"No valid files to upload. Skipped: {skipped_files}",
+            )
+
+        object_keys = [
+            generate_object_key(point_name, file_info.name)
+            for file_info, _ in valid_files
+        ]
 
         # 检查活跃记录重复
         existing_active = (
@@ -128,13 +169,13 @@ class UploadJobService:
         # 3. 批量建立 AudioInfo (upload_status = pending)
         audio_map: dict[str, AudioInfo] = {}
 
-        for file_info in request.files:
+        for file_info, parsed in valid_files:
             object_key = generate_object_key(point_name, file_info.name)
-            parsed = parse_audio_filename(file_info.name)
 
             audio = AudioInfo(
                 deployment_id=request.deployment_id,
                 file_name=file_info.name,
+                recorder_sn=parsed.recorder_sn,
                 object_key=object_key,
                 file_size=file_info.size,
                 record_time=parsed.record_time,
@@ -151,7 +192,7 @@ class UploadJobService:
             deployment_id=request.deployment_id,
             user_id=user_id,
             priority=request.priority,
-            total_files=len(request.files),
+            total_files=len(valid_files),
             status=JobStatus.PENDING,
         )
         self.db.add(job)
@@ -161,7 +202,7 @@ class UploadJobService:
         tasks_info = []
         url_expires_at = datetime.now(UTC) + timedelta(hours=24)
 
-        for file_info in request.files:
+        for file_info, _ in valid_files:
             object_key = generate_object_key(point_name, file_info.name)
             audio = audio_map[object_key]
 
@@ -267,8 +308,14 @@ class UploadJobService:
 
         return [self._job_to_status_response(job) for job in jobs]
 
-    def cancel_job(self, job_id: str) -> None:
-        """取消任务。"""
+    def cancel_job(self, job_id: str, user_id: int) -> None:
+        """
+        取消任務，並清理 MinIO 孤兒 parts 及軟刪除相關 AudioInfo。
+
+        Args:
+            job_id: 任務 ID
+            user_id: 執行取消的使用者 ID（用於軟刪除 deleted_by）
+        """
         job = self.db.query(UploadJob).filter(UploadJob.id == job_id).first()
 
         if not job:
@@ -280,8 +327,25 @@ class UploadJobService:
         if job.status in [JobStatus.COMPLETED, JobStatus.CANCELLED]:
             return
 
+        bucket = job.deployment.point.project.name
+        now = datetime.now(UTC)
+
+        for task in job.tasks:
+            if task.upload_id:
+                self.minio.abort_multipart_upload(
+                    bucket, task.object_key, task.upload_id
+                )
+
+            audio = task.audio
+            if audio and not audio.is_deleted:
+                audio.is_deleted = True
+                audio.deleted_at = now
+                audio.deleted_by = user_id
+
+            task.status = TaskStatus.FAILED
+
         job.status = JobStatus.CANCELLED
-        job.completed_at = datetime.now(UTC)
+        job.completed_at = now
         self.db.commit()
 
     # =========================================================================
@@ -400,8 +464,8 @@ class UploadJobService:
 
         bucket = task.job.deployment.point.project.name
 
-        # 1. 向 MinIO 完成上传
-        self.minio.complete_multipart_upload(
+        # 1. 向 MinIO 完成上传，取得 ETag
+        etag = self.minio.complete_multipart_upload(
             bucket=bucket,
             key=task.object_key,
             upload_id=task.upload_id,
@@ -418,6 +482,52 @@ class UploadJobService:
         audio.upload_status = UploadStatus.COMPLETED
         audio.upload_id = None
         audio.upload_progress = task.total_parts
+        audio.checksum = etag
+
+        # 4. 讀取 WAV header，填入 metadata 並驗證
+        try:
+            header_data = self.minio.read_object_range(bucket, task.object_key, 0, 43)
+            wav_info = parse_wav_header(header_data)
+
+            if wav_info.is_valid:
+                audio.fs = wav_info.sample_rate
+                audio.audio_channels = wav_info.num_channels
+                audio.record_duration = wav_info.duration_seconds
+
+                warnings = []
+                deployment = task.job.deployment
+
+                if deployment.fs and wav_info.sample_rate != deployment.fs:
+                    warnings.append(
+                        f"SampleRate: header={wav_info.sample_rate},"
+                        f" expected={deployment.fs}"
+                    )
+
+                expected_bits = (
+                    deployment.recorder.bits if deployment.recorder.bits else 16
+                )
+                if wav_info.bits_per_sample != expected_bits:
+                    warnings.append(
+                        f"BitsPerSample: header={wav_info.bits_per_sample},"
+                        f" expected={expected_bits}"
+                    )
+
+                expected_byte_rate = (
+                    wav_info.sample_rate
+                    * wav_info.num_channels
+                    * wav_info.bits_per_sample
+                    // 8
+                )
+                if wav_info.byte_rate != expected_byte_rate:
+                    warnings.append(
+                        f"ByteRate: header={wav_info.byte_rate},"
+                        f" calculated={expected_byte_rate}"
+                    )
+
+                if warnings:
+                    audio.header_warning = "; ".join(warnings)
+        except Exception:
+            logger.warning(f"Failed to validate WAV header for {task.object_key}")
 
         # 4. 更新 Job 计数
         job = task.job
