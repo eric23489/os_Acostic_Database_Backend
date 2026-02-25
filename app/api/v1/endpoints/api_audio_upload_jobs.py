@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_user
 from app.db.session import get_db
+from app.models.user import UserInfo
 from app.schemas.upload_job import (
     MultipartCompleteRequest,
     MultipartInitResponse,
@@ -32,8 +33,8 @@ def create_upload_job(
     request: UploadJobCreateRequest,
     response: Response,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
-):
+    current_user: UserInfo = Depends(get_current_user),
+) -> UploadJobCreateResponse:
     """
     建立上传任务。
 
@@ -53,10 +54,10 @@ def create_upload_job(
 def get_upload_job_status(
     job_id: str,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
-):
-    """查询上传任务进度。"""
-    return UploadJobService(db).get_job_status(job_id)
+    current_user: UserInfo = Depends(get_current_user),
+) -> UploadJobStatusResponse:
+    """查询上传任务进度。僅允許 job 擁有者查詢。"""
+    return UploadJobService(db).get_job_status(job_id, current_user.id)
 
 
 @router.get("/", response_model=list[UploadJobStatusResponse])
@@ -64,8 +65,8 @@ def list_upload_jobs(
     skip: int = 0,
     limit: int = 20,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
-):
+    current_user: UserInfo = Depends(get_current_user),
+) -> list[UploadJobStatusResponse]:
     """列出使用者的上传任务。"""
     return UploadJobService(db).list_jobs(current_user.id, skip, limit)
 
@@ -74,9 +75,9 @@ def list_upload_jobs(
 def cancel_upload_job(
     job_id: str,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
-):
-    """取消上传任务。"""
+    current_user: UserInfo = Depends(get_current_user),
+) -> dict:
+    """取消上传任务。僅允許 job 擁有者取消。"""
     UploadJobService(db).cancel_job(job_id, current_user.id)
     return {"status": "cancelled"}
 
@@ -92,15 +93,19 @@ def complete_upload_task(
     task_id: str,
     request: TaskCompleteRequest | None = None,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
-):
+    current_user: UserInfo = Depends(get_current_user),
+) -> dict:
     """
-    通知单档上传完成 (简单上传模式)。
+    通知單檔上傳完成（簡單上傳模式）。
 
-    注意：对于大档案，请使用 multipart upload API。
+    - 更新 AudioInfo.upload_status 為 completed
+    - 更新 UploadTask.status 為 completed
+    - 更新 UploadJob 計數，若全部完成則標記 job 為 completed
+    - 冪等：已完成則直接返回 ok
+
+    注意：大檔案請使用 multipart upload API。
     """
-    # For simple uploads, we need to implement this differently
-    # This is a placeholder for now
+    UploadJobService(db).complete_task(job_id, task_id, current_user.id, request)
     return {"status": "ok"}
 
 
@@ -117,8 +122,8 @@ def init_multipart_upload(
     job_id: str,
     task_id: str,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
-):
+    current_user: UserInfo = Depends(get_current_user),
+) -> MultipartInitResponse:
     """
     初始化分段上传。
 
@@ -126,7 +131,7 @@ def init_multipart_upload(
     - 向 MinIO 发起 create_multipart_upload
     - 回传 upload_id 和分段资讯
     """
-    return UploadJobService(db).init_multipart(job_id, task_id)
+    return UploadJobService(db).init_multipart(job_id, task_id, current_user.id)
 
 
 @router.post(
@@ -138,8 +143,8 @@ def get_multipart_urls(
     task_id: str,
     request: MultipartUrlsRequest,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
-):
+    current_user: UserInfo = Depends(get_current_user),
+) -> MultipartUrlsResponse:
     """
     取得指定 parts 的 presigned URLs。
 
@@ -147,7 +152,7 @@ def get_multipart_urls(
     - 支援重试失败的 parts
     """
     return UploadJobService(db).get_multipart_urls(
-        job_id, task_id, request.part_numbers
+        job_id, task_id, request.part_numbers, current_user.id
     )
 
 
@@ -157,8 +162,8 @@ def complete_part(
     task_id: str,
     request: PartCompleteRequest,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
-):
+    current_user: UserInfo = Depends(get_current_user),
+) -> dict:
     """
     通知单一 part 上传完成。
 
@@ -166,7 +171,7 @@ def complete_part(
     - 更新进度 (completed_parts)
     """
     UploadJobService(db).mark_part_complete(
-        job_id, task_id, request.part_number, request.etag
+        job_id, task_id, request.part_number, request.etag, current_user.id
     )
     return {"status": "ok"}
 
@@ -177,15 +182,17 @@ def complete_multipart_upload(
     task_id: str,
     request: MultipartCompleteRequest,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
-):
+    current_user: UserInfo = Depends(get_current_user),
+) -> dict:
     """
     完成分段上传。
 
     - 向 MinIO 发起 complete_multipart_upload
     - 更新 AudioInfo 状态为 completed
     """
-    UploadJobService(db).complete_multipart(job_id, task_id, request.parts)
+    UploadJobService(db).complete_multipart(
+        job_id, task_id, request.parts, current_user.id
+    )
     return {"status": "ok"}
 
 
@@ -194,15 +201,15 @@ def abort_multipart_upload(
     job_id: str,
     task_id: str,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
-):
+    current_user: UserInfo = Depends(get_current_user),
+) -> dict:
     """
     取消分段上传。
 
     - 向 MinIO 发起 abort_multipart_upload
     - 清理已上传的 parts
     """
-    UploadJobService(db).abort_multipart(job_id, task_id)
+    UploadJobService(db).abort_multipart(job_id, task_id, current_user.id)
     return {"status": "aborted"}
 
 
@@ -214,11 +221,11 @@ def get_task_progress(
     job_id: str,
     task_id: str,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
-):
+    current_user: UserInfo = Depends(get_current_user),
+) -> TaskProgressResponse:
     """
     取得单一档案的上传进度。
 
     - 用于断点续传：查询已完成的 parts
     """
-    return UploadJobService(db).get_task_progress(job_id, task_id)
+    return UploadJobService(db).get_task_progress(job_id, task_id, current_user.id)

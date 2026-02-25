@@ -11,6 +11,7 @@
 import logging
 from datetime import UTC, datetime, timedelta
 
+from botocore.exceptions import ClientError
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -25,6 +26,7 @@ from app.schemas.upload_job import (
     MultipartUrlsResponse,
     PartCompleteRequest,
     SkippedFileInfo,
+    TaskCompleteRequest,
     TaskProgressResponse,
     TaskStatusInfo,
     UploadJobCreateRequest,
@@ -202,7 +204,7 @@ class UploadJobService:
 
         self.db.flush()  # 取得 audio.id
 
-        # 4. 建立 Job
+        # 7. 建立 Job
         job = UploadJob(
             deployment_id=request.deployment_id,
             user_id=user_id,
@@ -213,7 +215,7 @@ class UploadJobService:
         self.db.add(job)
         self.db.flush()
 
-        # 5. 建立 Tasks (关联 audio_id)
+        # 8. 批量建立 Tasks (關聯 audio_id)
         tasks_info = []
         url_expires_at = datetime.now(UTC) + timedelta(hours=24)
 
@@ -231,7 +233,6 @@ class UploadJobService:
                 url_expires_at=url_expires_at,
             )
             self.db.add(task)
-            self.db.flush()
 
             tasks_info.append(
                 UploadTaskInfo(
@@ -244,7 +245,7 @@ class UploadJobService:
 
         self.db.commit()
 
-        logger.info(f"Created upload job {job.id} with {len(tasks_info)} files")
+        logger.info("Created upload job %s with %d files", job.id, len(tasks_info))
 
         return UploadJobCreateResponse(
             job_id=job.id,
@@ -255,9 +256,13 @@ class UploadJobService:
             skipped_files=skipped_files,
         )
 
-    def get_job_status(self, job_id: str) -> UploadJobStatusResponse:
-        """查询任务进度。"""
-        job = self.db.query(UploadJob).filter(UploadJob.id == job_id).first()
+    def get_job_status(self, job_id: str, user_id: int) -> UploadJobStatusResponse:
+        """查询任务进度。僅允許 job 擁有者查詢。"""
+        job = (
+            self.db.query(UploadJob)
+            .filter(UploadJob.id == job_id, UploadJob.user_id == user_id)
+            .first()
+        )
 
         if not job:
             raise HTTPException(
@@ -280,7 +285,6 @@ class UploadJobService:
                 minutes = int((remaining_seconds % 3600) // 60)
                 estimated = f"{hours}h {minutes}m"
 
-        # 取得所有 tasks 状态 (用于断点续传)
         tasks_info = [
             TaskStatusInfo(
                 task_id=t.id,
@@ -327,12 +331,17 @@ class UploadJobService:
     def cancel_job(self, job_id: str, user_id: int) -> None:
         """
         取消任務，並清理 MinIO 孤兒 parts 及軟刪除相關 AudioInfo。
+        僅允許 job 擁有者取消。
 
         Args:
             job_id: 任務 ID
-            user_id: 執行取消的使用者 ID（用於軟刪除 deleted_by）
+            user_id: 執行取消的使用者 ID
         """
-        job = self.db.query(UploadJob).filter(UploadJob.id == job_id).first()
+        job = (
+            self.db.query(UploadJob)
+            .filter(UploadJob.id == job_id, UploadJob.user_id == user_id)
+            .first()
+        )
 
         if not job:
             raise HTTPException(
@@ -365,12 +374,69 @@ class UploadJobService:
         self.db.commit()
 
     # =========================================================================
+    # Task Completion (Simple Upload)
+    # =========================================================================
+
+    def complete_task(
+        self,
+        job_id: str,
+        task_id: str,
+        user_id: int,
+        request: TaskCompleteRequest | None = None,
+    ) -> None:
+        """
+        完成簡單上傳任務，更新 AudioInfo 與 Job 狀態。
+        冪等設計：已完成則直接返回。
+
+        Args:
+            job_id: 任務 ID
+            task_id: 子任務 ID
+            user_id: 使用者 ID
+            request: 選填的完成資訊（etag, file_size）
+        """
+        task = self._get_task(job_id, task_id, user_id)
+
+        if task.status == TaskStatus.COMPLETED:
+            return
+
+        task.status = TaskStatus.COMPLETED
+        task.uploaded_at = datetime.now(UTC)
+        task.completed_at = datetime.now(UTC)
+
+        audio = task.audio
+        audio.upload_status = UploadStatus.COMPLETED
+        audio.upload_id = None
+
+        if request:
+            if request.etag:
+                audio.checksum = request.etag
+            if request.file_size:
+                audio.file_size = request.file_size
+
+        job = task.job
+        job.uploaded_count += 1
+        job.completed_count += 1
+
+        if job.status == JobStatus.PENDING:
+            job.status = JobStatus.PROCESSING
+            job.started_at = datetime.now(UTC)
+
+        if job.completed_count >= job.total_files:
+            job.status = JobStatus.COMPLETED
+            job.completed_at = datetime.now(UTC)
+
+        self.db.commit()
+        logger.info("Completed simple upload for task %s", task_id)
+
+    # =========================================================================
     # Multipart Upload
     # =========================================================================
 
-    def init_multipart(self, job_id: str, task_id: str) -> MultipartInitResponse:
+    def init_multipart(
+        self, job_id: str, task_id: str, user_id: int
+    ) -> MultipartInitResponse:
         """初始化分段上传。"""
-        task = self._get_task(job_id, task_id)
+        task = self._get_task(job_id, task_id, user_id)
 
         if task.upload_id:
             # 已初始化，回传现有资讯 (幂等)
@@ -415,10 +481,10 @@ class UploadJobService:
         )
 
     def get_multipart_urls(
-        self, job_id: str, task_id: str, part_numbers: list[int]
+        self, job_id: str, task_id: str, part_numbers: list[int], user_id: int
     ) -> MultipartUrlsResponse:
         """取得指定 parts 的 presigned URLs。"""
-        task = self._get_task(job_id, task_id)
+        task = self._get_task(job_id, task_id, user_id)
 
         if not task.upload_id:
             raise HTTPException(
@@ -447,10 +513,10 @@ class UploadJobService:
         return MultipartUrlsResponse(parts=parts)
 
     def mark_part_complete(
-        self, job_id: str, task_id: str, part_number: int, etag: str
+        self, job_id: str, task_id: str, part_number: int, etag: str, user_id: int
     ) -> None:
         """标记单一 part 上传完成。"""
-        task = self._get_task(job_id, task_id)
+        task = self._get_task(job_id, task_id, user_id)
 
         if not task.part_etags:
             task.part_etags = {}
@@ -467,10 +533,10 @@ class UploadJobService:
         self.db.commit()
 
     def complete_multipart(
-        self, job_id: str, task_id: str, parts: list[PartCompleteRequest]
+        self, job_id: str, task_id: str, parts: list[PartCompleteRequest], user_id: int
     ) -> None:
         """完成分段上传，更新 AudioInfo 状态。"""
-        task = self._get_task(job_id, task_id)
+        task = self._get_task(job_id, task_id, user_id)
 
         if not task.upload_id:
             raise HTTPException(
@@ -480,27 +546,39 @@ class UploadJobService:
 
         bucket = task.job.deployment.point.project.name
 
-        # 1. 向 MinIO 完成上传，取得 ETag
-        etag = self.minio.complete_multipart_upload(
-            bucket=bucket,
-            key=task.object_key,
-            upload_id=task.upload_id,
-            parts=[{"PartNumber": p.part_number, "ETag": p.etag} for p in parts],
-        )
+        # 1. 向 MinIO 完成上傳（C3：獨立 try/except，MinIO 失敗不繼續）
+        try:
+            etag = self.minio.complete_multipart_upload(
+                bucket=bucket,
+                key=task.object_key,
+                upload_id=task.upload_id,
+                parts=[{"PartNumber": p.part_number, "ETag": p.etag} for p in parts],
+            )
+        except ClientError as e:
+            logger.error(
+                "MinIO complete_multipart_upload failed. object_key=%s upload_id=%s error=%s",
+                task.object_key,
+                task.upload_id,
+                e,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Failed to finalize upload in storage",
+            )
 
         # 2. 更新 Task 状态
         task.status = TaskStatus.COMPLETED
         task.uploaded_at = datetime.now(UTC)
         task.completed_at = datetime.now(UTC)
 
-        # 3. 更新 AudioInfo 状态 (已预先建立)
+        # 3. 更新 AudioInfo 状态
         audio = task.audio
         audio.upload_status = UploadStatus.COMPLETED
         audio.upload_id = None
         audio.upload_progress = task.total_parts
         audio.checksum = etag
 
-        # 4. 讀取 WAV header，填入 metadata 並驗證
+        # 4. 讀取 WAV header，填入 metadata 並驗證（非關鍵，失敗不中斷）
         try:
             header_data = self.minio.read_object_range(bucket, task.object_key, 0, 43)
             wav_info = parse_wav_header(header_data)
@@ -543,9 +621,9 @@ class UploadJobService:
                 if warnings:
                     audio.header_warning = "; ".join(warnings)
         except Exception:
-            logger.warning(f"Failed to validate WAV header for {task.object_key}")
+            logger.warning("Failed to validate WAV header for %s", task.object_key)
 
-        # 4. 更新 Job 计数
+        # 5. 更新 Job 計數
         job = task.job
         job.uploaded_count += 1
         job.completed_count += 1
@@ -554,17 +632,34 @@ class UploadJobService:
             job.status = JobStatus.PROCESSING
             job.started_at = datetime.now(UTC)
 
-        # 检查是否全部完成
         if job.completed_count >= job.total_files:
             job.status = JobStatus.COMPLETED
             job.completed_at = datetime.now(UTC)
 
-        self.db.commit()
-        logger.info(f"Completed multipart upload for task {task_id}")
+        # 6. Commit（C3：MinIO 已完成，DB 失敗需人工介入）
+        try:
+            self.db.commit()
+        except Exception as e:
+            logger.critical(
+                "DB commit failed after MinIO complete_multipart_upload. "
+                "Manual reconciliation required. object_key=%s upload_id=%s error=%s",
+                task.object_key,
+                task.upload_id,
+                e,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=(
+                    "Upload finalized in storage but database update failed. "
+                    "Please contact support."
+                ),
+            )
 
-    def abort_multipart(self, job_id: str, task_id: str) -> None:
+        logger.info("Completed multipart upload for task %s", task_id)
+
+    def abort_multipart(self, job_id: str, task_id: str, user_id: int) -> None:
         """取消分段上传。"""
-        task = self._get_task(job_id, task_id)
+        task = self._get_task(job_id, task_id, user_id)
 
         if task.upload_id:
             bucket = task.job.deployment.point.project.name
@@ -587,9 +682,11 @@ class UploadJobService:
 
         self.db.commit()
 
-    def get_task_progress(self, job_id: str, task_id: str) -> TaskProgressResponse:
+    def get_task_progress(
+        self, job_id: str, task_id: str, user_id: int
+    ) -> TaskProgressResponse:
         """取得单一档案的上传进度 (用于断点续传)。"""
-        task = self._get_task(job_id, task_id)
+        task = self._get_task(job_id, task_id, user_id)
 
         completed_parts = (
             sorted([int(p) for p in task.part_etags.keys()])
@@ -618,13 +715,18 @@ class UploadJobService:
     # Helper Methods
     # =========================================================================
 
-    def _get_task(self, job_id: str, task_id: str) -> UploadTask:
-        """取得 task，不存在则 404。"""
+    def _get_task(self, job_id: str, task_id: str, user_id: int) -> UploadTask:
+        """
+        取得 task，並驗證歸屬於指定使用者的 job。
+        不符合則回傳 404（不洩漏其他使用者的資源是否存在）。
+        """
         task = (
             self.db.query(UploadTask)
+            .join(UploadJob, UploadTask.job_id == UploadJob.id)
             .filter(
                 UploadTask.id == task_id,
                 UploadTask.job_id == job_id,
+                UploadJob.user_id == user_id,
             )
             .first()
         )

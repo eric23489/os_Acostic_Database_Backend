@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta, timezone
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, field_serializer, field_validator
+from pydantic import BaseModel, ConfigDict, field_serializer, field_validator, model_validator
 
 from app.schemas.deployment import DeploymentWithDetailsResponse
 
@@ -156,6 +156,15 @@ class AudioBatchResultItem(BaseModel):
     status: Literal["created", "skipped", "failed"]
     audio_id: int | None = None
     reason: str | None = None
+
+    @model_validator(mode="after")
+    def validate_status_fields(self) -> "AudioBatchResultItem":
+        """驗證 status 與 audio_id/reason 的跨欄位不變量。"""
+        if self.status == "created" and self.audio_id is None:
+            raise ValueError("audio_id is required when status is 'created'")
+        if self.status in ("skipped", "failed") and self.reason is None:
+            raise ValueError("reason is required when status is 'skipped' or 'failed'")
+        return self
 
 
 class AudioBatchCreateResponse(BaseModel):

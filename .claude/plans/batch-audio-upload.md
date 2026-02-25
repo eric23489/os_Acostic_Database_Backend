@@ -5,13 +5,13 @@
 | 檔案 | 變更說明 |
 |------|----------|
 | `app/schemas/upload_job.py` | 移除 `FileInfo` Pydantic validator、新增 `SkippedFileInfo`、`UploadJobCreateResponse` 新增 `skipped_files` |
-| `app/services/upload_job_service.py` | `create_job()` 改為 per-file 驗證（格式 + SN）、部分成功收集、`cancel_job()` 補強清理 |
-| `app/api/v1/endpoints/api_audio_upload_jobs.py` | `create_upload_job` 改為動態 status code（201/207）、`cancel_upload_job` 傳入 `user_id` |
-| `app/schemas/audio.py` | 新增 Batch Schema：`AudioBatchItem`、`AudioBatchCreateRequest`、`AudioBatchResultItem`、`AudioBatchCreateResponse` |
-| `app/services/audio_service.py` | 新增 `create_audios_batch()`、`_get_existing_active_keys()`、`_get_existing_deleted_keys()` |
-| `app/api/v1/endpoints/api_audio.py` | 新增 `POST /batch` 路由 |
+| `app/services/upload_job_service.py` | `create_job()` 改為 per-file 驗證（格式 + SN）、部分成功收集、`cancel_job()` 補強清理；PR review 補強：C1 `complete_task()`、C2 IDOR 修復、C3 MinIO/DB 一致性 |
+| `app/api/v1/endpoints/api_audio_upload_jobs.py` | `create_upload_job` 改為動態 status code（201/207）、`cancel_upload_job` 傳入 `user_id`；PR review 補強：C1/C2 所有端點傳入 `user_id` |
+| `app/schemas/audio.py` | 新增 Batch Schema：`AudioBatchItem`、`AudioBatchCreateRequest`、`AudioBatchResultItem`、`AudioBatchCreateResponse`；PR review 補強：C5 `AudioBatchResultItem` 跨欄位不變量 |
+| `app/services/audio_service.py` | 新增 `create_audios_batch()`、`_get_existing_active_keys()`、`_get_existing_deleted_keys()`；PR review 補強：C4 IntegrityError 409、C6 auth 移至 service |
+| `app/api/v1/endpoints/api_audio.py` | 新增 `POST /batch` 路由；PR review 補強：C6 router 移除業務邏輯 |
 | `tests/integration/test_audio_upload_integration.py` | 新增：invalid filename 207、SN 不存在 207、全部無效 400 測試 |
-| `tests/test_audio_batch.py` | 新增 +18 測試案例 (P0/P1/P2) |
+| `tests/test_audio.py` | PR review 補強：C7 新增 18 測試（型別不變量、批次大小邊界、端點整合） |
 
 ---
 
@@ -469,7 +469,7 @@ def create_audios_batch(
 
 ## 驗證方式
 
-1. `pytest tests/test_audio_batch.py -v`
+1. `pytest tests/test_audio.py -v`
 2. `ruff check && ruff format`
 3. 手動測試:
    ```bash
@@ -477,6 +477,81 @@ def create_audios_batch(
      -H "Authorization: Bearer $TOKEN" \
      -d '{"deployment_id": 1, "audios": [...]}'
    ```
+
+---
+
+## PR Review 修復記錄 (PR #16)
+
+PR review 由 4 個 Agent 並行執行（code-reviewer、pr-test-analyzer、silent-failure-hunter、type-design-analyzer），發現 7 個 Critical issue，全部已修復。
+
+### C1 — 未實作的佔位端點
+
+**問題**: `complete_upload_task` 端點只回傳 `{"status": "placeholder"}`，呼叫端永遠收不到真實結果。
+
+**修復**: 實作 `UploadJobService.complete_task(job_id, task_id, user_id, request)`：
+- 冪等：已完成的 task 直接回傳 ok
+- 更新 `UploadTask.status = COMPLETED`
+- 更新 `AudioInfo.upload_status = COMPLETED`、`upload_completed_at`
+- 更新 `UploadJob` 計數，若所有 task 完成則標記 job 為 COMPLETED
+
+### C2 — IDOR（Insecure Direct Object Reference）
+
+**問題**: `_get_task`、`get_job_status`、`cancel_job` 未驗證 `user_id`，任意使用者可操作其他人的 job/task。
+
+**修復**:
+- `_get_task`：JOIN `UploadJob` 並過濾 `UploadJob.user_id == user_id`，回傳 404（不回傳 403，避免洩漏資源存在）
+- `get_job_status`：查詢時加入 `UploadJob.user_id == user_id` 條件
+- `cancel_job`：查詢時加入 `UploadJob.user_id == user_id` 條件
+- 所有 multipart 方法簽名新增 `user_id: int` 參數並傳遞
+
+### C3 — MinIO 與 DB 操作不一致性
+
+**問題**: `complete_multipart` 中若 MinIO 成功但 `db.commit()` 失敗，或 MinIO 失敗但繼續 commit，會造成資料與物件儲存不同步。
+
+**修復**:
+- MinIO `complete_multipart_upload` 失敗 → `ClientError` → HTTP 502（MinIO 問題，非客戶端問題）
+- `db.commit()` 失敗 → `logger.critical(...)` + HTTP 500（提示用戶聯繫支援）
+- 兩種失敗語義不同，分開處理
+
+### C4 — TOCTOU 競爭條件（check-then-act）
+
+**問題**: `create_audios_batch` 先查詢 `active_keys`，再插入，並行請求可能在查詢後插入相同 `object_key` 導致 IntegrityError 未被處理。
+
+**修復**: `db.flush()` 包覆在 `try/except IntegrityError`：
+- 失敗 → `db.rollback()` + logger.warning + HTTP 409 Conflict（"Please retry"）
+
+### C5 — 型別不變量未強制 (AudioBatchResultItem)
+
+**問題**: `status="created"` 時 `audio_id` 可為 `None`；`status="skipped"/"failed"` 時 `reason` 可為 `None`，下游可能產生 `None` 污染。
+
+**修復**: 在 `AudioBatchResultItem` 新增 `@model_validator(mode="after")`：
+```python
+@model_validator(mode="after")
+def validate_status_fields(self) -> "AudioBatchResultItem":
+    if self.status == "created" and self.audio_id is None:
+        raise ValueError("audio_id is required when status is 'created'")
+    if self.status in ("skipped", "failed") and self.reason is None:
+        raise ValueError("reason is required when status is 'skipped' or 'failed'")
+    return self
+```
+
+### C6 — Router 層含業務邏輯（違反架構規範）
+
+**問題**: `restore_audio` 端點在 router 中直接查詢 DB 取得 user role、判斷是否為 admin，違反「router 只接收請求和回傳回應」原則。
+
+**修復**:
+- `restore_audio` service 方法簽名改為 `(audio_id, current_user_id, is_admin)`，auth check 移入 service
+- Router 只計算 `is_admin = current_user.role == UserRole.ADMIN.value` 後傳入
+- `hard_delete_audio`：改用 `get_current_admin_user` dependency，移除 router 中的手動 admin 檢查
+
+### C7 — 缺少型別不變量與端點測試
+
+**問題**: C5 修復後無測試覆蓋；batch 端點關鍵路徑（201/207/409）無測試。
+
+**修復**: 新建 `tests/test_audio.py`（18 個測試）：
+- `TestAudioBatchResultItem`（7 tests）：驗證 created/skipped/failed 的欄位不變量
+- `TestAudioBatchCreateRequest`（4 tests）：驗證 0/1/100/101 筆邊界
+- `TestCreateAudiosBatchEndpoint`（7 tests）：201 全建立、207 部分跳過、404 deployment、422 驗證失敗、207 軟刪除鍵跳過、409 並行衝突
 
 ---
 

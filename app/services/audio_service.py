@@ -2,6 +2,7 @@ import logging
 from datetime import UTC, datetime
 
 from fastapi import HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.minio import get_s3_client
@@ -157,12 +158,28 @@ class AudioService:
         self.db.refresh(audio)
         return audio
 
-    def restore_audio(self, audio_id: int) -> AudioInfo:
+    def restore_audio(
+        self, audio_id: int, current_user_id: int, is_admin: bool
+    ) -> AudioInfo:
+        """
+        還原軟刪除的 Audio。僅允許原刪除者或 Admin 執行。
+
+        Args:
+            audio_id: Audio ID
+            current_user_id: 執行還原的使用者 ID
+            is_admin: 是否為 Admin
+        """
         audio = self.db.query(AudioInfo).filter(AudioInfo.id == audio_id).first()
         if not audio:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Audio not found",
+            )
+
+        if not is_admin and current_user_id != audio.deleted_by:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only the deleter or admin can restore this resource",
             )
 
         # Check for object_key collision
@@ -362,7 +379,18 @@ class AudioService:
             self.db.add(audio)
             to_create.append((idx, audio))
 
-        self.db.flush()
+        # C4：flush 可能因並發競爭拋出 IntegrityError
+        try:
+            self.db.flush()
+        except IntegrityError as e:
+            self.db.rollback()
+            logger.warning(
+                "create_audios_batch flush IntegrityError (concurrent write conflict): %s", e
+            )
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Concurrent write conflict on object_key. Please retry.",
+            )
 
         # 補充 created 結果（flush 後才有 ID）
         for idx, audio in to_create:
@@ -373,6 +401,7 @@ class AudioService:
                     object_key=item.object_key,
                     status="created",
                     audio_id=audio.id,
+                    reason=None,
                 )
             )
 

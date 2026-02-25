@@ -1,10 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy.orm import Session
 
-from app.core.auth import get_current_user
+from app.core.auth import get_current_admin_user, get_current_user
 from app.db.session import get_db
-from app.models.audio import AudioInfo
-from app.models.user import UserRole
+from app.models.user import UserInfo, UserRole
 from app.schemas.audio import (
     AudioBatchCreateRequest,
     AudioBatchCreateResponse,
@@ -115,23 +114,10 @@ def delete_audio(
 def restore_audio(
     audio_id: int,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
-):
-    audio = db.query(AudioInfo).filter(AudioInfo.id == audio_id).first()
-    if not audio:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Audio not found",
-        )
-    if (
-        current_user.role != UserRole.ADMIN.value
-        and current_user.id != audio.deleted_by
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only the deleter or admin can restore this resource",
-        )
-    return AudioService(db).restore_audio(audio_id)
+    current_user: UserInfo = Depends(get_current_user),
+) -> AudioResponse:
+    is_admin = current_user.role == UserRole.ADMIN.value
+    return AudioService(db).restore_audio(audio_id, current_user.id, is_admin)
 
 
 @router.post("/batch", response_model=AudioBatchCreateResponse)
@@ -161,20 +147,13 @@ def create_audios_batch(
 def hard_delete_audio(
     audio_id: int,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
-):
+    current_user: UserInfo = Depends(get_current_admin_user),
+) -> dict:
     """
-    永久刪除單一 Audio。
+    永久刪除單一 Audio。需要 Admin 權限。
 
     - 刪除 MinIO 物件
     - 刪除資料庫記錄
     - 釋放 object_key，可重新使用
-
-    需要 Admin 權限。
     """
-    if current_user.role != UserRole.ADMIN.value:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin permission required for permanent deletion",
-        )
     return AudioService(db).hard_delete_audio(audio_id)
