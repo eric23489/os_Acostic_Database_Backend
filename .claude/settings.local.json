@@ -53,7 +53,13 @@
       "Bash(cat:*)",
       "Bash(git:*)",
       "Bash(cd /c/Users/OceanSound-001/os_Acostic_Database_Backend && ruff check app/schemas/upload_job.py app/schemas/audio.py app/services/upload_job_service.py app/services/audio_service.py app/api/v1/endpoints/api_audio_upload_jobs.py app/api/v1/endpoints/api_audio.py 2>&1)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Skill(pr-review-toolkit:review-pr)",
+      "Bash(cd /c/Users/OceanSound-001/os_Acostic_Database_Backend && pytest tests/test_audio.py -v 2>&1)",
+      "Bash(cd /c/Users/OceanSound-001/os_Acostic_Database_Backend && .venv/Scripts/pytest tests/test_audio.py -v 2>&1)",
+      "Bash(cd /c/Users/OceanSound-001/os_Acostic_Database_Backend && ruff check app/services/upload_job_service.py app/schemas/audio.py 2>&1)",
+      "Bash(cd /c/Users/OceanSound-001/os_Acostic_Database_Backend && /c/Users/OceanSound-001/AppData/Local/Python/pythoncore-3.14-64/Scripts/ruff.exe check app/services/upload_job_service.py app/schemas/audio.py 2>&1)",
+      "Bash(powershell.exe:*)"
     ]
   }
 }

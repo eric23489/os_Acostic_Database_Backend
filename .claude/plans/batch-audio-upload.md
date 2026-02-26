@@ -1,15 +1,37 @@
 # Feature: 多檔案上傳 (Batch Audio Upload)
 
+## 實作狀態：完成
+
+兩條路徑均已實作並通過 PR review：
+
+| 路徑 | 說明 | 狀態 |
+|------|------|------|
+| **路徑 A：UploadJob** | 上傳實際檔案到 MinIO（含分段上傳） | 完成 |
+| **路徑 B：AudioBatch** | 僅建立 AudioInfo metadata（檔案已在 MinIO） | 完成 |
+
+---
+
+## 兩條路徑選擇
+
+| 情境 | 使用路徑 |
+|------|----------|
+| 上傳實際檔案到 MinIO | **路徑 A：UploadJob** |
+| 僅建立 AudioInfo metadata（檔案已在 MinIO） | **路徑 B：AudioBatch** |
+
+### object_key 規則
+- **路徑 A**：後端自動生成，格式 `{point_name}/{YYYY}/{MM}/Raw_Data/{filename}`
+- **路徑 B**：前端提供，需自行按格式計算
+
+---
+
 ## 修改的相關檔案
 
 | 檔案 | 變更說明 |
 |------|----------|
 | `app/schemas/upload_job.py` | 移除 `FileInfo` Pydantic validator、新增 `SkippedFileInfo`、`UploadJobCreateResponse` 新增 `skipped_files` |
-| `app/services/upload_job_service.py` | `create_job()` 改為 per-file 驗證（格式 + SN）、部分成功收集、`cancel_job()` 補強清理；PR review 補強：C1 `complete_task()`、C2 IDOR 修復、C3 MinIO/DB 一致性 |
-| `app/api/v1/endpoints/api_audio_upload_jobs.py` | `create_upload_job` 改為動態 status code（201/207）、`cancel_upload_job` 傳入 `user_id`；PR review 補強：C1/C2 所有端點傳入 `user_id` |
 | `app/schemas/audio.py` | 新增 Batch Schema：`AudioBatchItem`、`AudioBatchCreateRequest`、`AudioBatchResultItem`、`AudioBatchCreateResponse`；PR#1 C5 跨欄位不變量；PR#2 新增 `MessageResponse` |
 | `app/services/audio_service.py` | 新增 `create_audios_batch()`、`_get_existing_active_keys()`、`_get_existing_deleted_keys()`；PR#1 C4 IntegrityError 409；PR#2 C1 `restore_audio` 簽名（接受 `UserInfo`）、C7 `hard_delete` MinIO 失敗 502、C8 `create_audios_batch` commit guard、I1 sort bug 修正（dict index） |
-| `app/services/upload_job_service.py` | `create_job()` per-file 驗證、`cancel_job()` 清理；PR#1 C1 `complete_task()`、C2 IDOR、C3 MinIO/DB 一致性；PR#2 C5 WAV header `except ClientError`、C6 `complete_task` commit guard |
+| `app/services/upload_job_service.py` | `create_job()` per-file 驗證、`cancel_job()` 清理；PR#1 C1 `complete_task()`、C2 IDOR、C3 MinIO/DB 一致性；PR#2 C5 WAV header `except ClientError`、C6 `complete_task` commit guard；最終：抽取 `_estimate_remaining()` helper，`list_jobs` 補充剩餘時間估算，格式改為中文「X 小時 Y 分鐘」 |
 | `app/api/v1/endpoints/api_audio.py` | 新增 `POST /batch` 路由；PR#1 C6 router 移除業務邏輯；PR#2 C1 `restore_audio` 只傳 `current_user`、C2 `hard_delete` 改用 `MessageResponse` |
 | `app/api/v1/endpoints/api_audio_upload_jobs.py` | `create_upload_job` 動態 status code（201/207）；PR#1 C1/C2 所有端點傳入 `user_id` |
 | `tests/integration/test_audio_upload_integration.py` | 新增：invalid filename 207、SN 不存在 207、全部無效 400 測試 |
@@ -156,18 +178,38 @@
      │                    │                    │
 ```
 
-### API Endpoints 摘要
+### 路徑 A：API Endpoints（/api/v1/audio-upload-jobs 前綴）
 
 | 步驟 | Method | Endpoint | 用途 |
 |------|--------|----------|------|
-| 1 | POST | `/audio-upload-jobs/` | 建立上傳任務，預建 AudioInfo |
-| 2 | POST | `/{job_id}/tasks/{task_id}/multipart/init` | 初始化 Multipart Upload |
-| 3 | POST | `/{job_id}/tasks/{task_id}/multipart/urls` | 取得 Part Presigned URLs |
-| 4 | PUT | `{presigned_url}` (直接傳 MinIO) | 上傳單一 Part |
-| 5 | POST | `/{job_id}/tasks/{task_id}/multipart/part-complete` | 回報 Part 完成 |
-| 6 | POST | `/{job_id}/tasks/{task_id}/multipart/complete` | 完成整個檔案上傳 |
-| 7 | GET | `/{job_id}` | 查詢任務進度 |
-| 8 | GET | `/{job_id}/tasks/{task_id}/progress` | 查詢單檔進度 (斷點續傳) |
+| 1 | POST | `/` | 建立任務，預建 AudioInfo (status=PENDING)；201 全成功 / 207 有 skip |
+| 2 | POST | `/{job_id}/tasks/{task_id}/multipart/init` | 初始化 Multipart Upload；冪等 |
+| 3 | POST | `/{job_id}/tasks/{task_id}/multipart/urls` | 取得 Part presigned URLs（可分批） |
+| 4 | PUT | `{presigned_url}` (直接傳 MinIO) | 上傳單一 Part，取得 ETag |
+| 5 | POST | `/{job_id}/tasks/{task_id}/multipart/part-complete` | 回報 Part 完成 + ETag |
+| 6 | POST | `/{job_id}/tasks/{task_id}/multipart/complete` | 完成整個檔案；WAV header 自動解析 |
+| — | GET | `/{job_id}` | 查詢任務進度（含 estimated_remaining） |
+| — | GET | `/{job_id}/tasks/{task_id}/progress` | 斷點續傳：查詢 completed/remaining parts |
+| — | POST | `/{job_id}/cancel` | 取消任務：abort MinIO + 軟刪除 AudioInfo |
+
+### 路徑 B：API Endpoints（/api/v1/audio 前綴）
+
+| Method | Endpoint | 用途 |
+|--------|----------|------|
+| POST | `/batch` | 批量建立 AudioInfo（1–100 筆）；201 全成功 / 207 有 skip/fail |
+
+### 錯誤代碼
+
+| Code | 路徑 A | 路徑 B |
+|------|--------|--------|
+| 201 | 全部成功 | 全部成功 |
+| 207 | 有 skipped_files | 有 skipped/failed results |
+| 400 | 全部 skip（無有效檔案） | — |
+| 404 | deployment 不存在 | deployment 不存在 |
+| 409 | — | 並行寫入衝突（retry） |
+| 422 | 格式驗證失敗 | audios 空列表 / 超過 100 筆 |
+| 500 | DB commit 失敗 | DB commit 失敗 |
+| 502 | MinIO complete 失敗 | — |
 
 ### Request/Response 範例
 

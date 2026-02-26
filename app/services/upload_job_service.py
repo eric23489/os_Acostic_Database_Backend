@@ -273,17 +273,7 @@ class UploadJobService:
         total = job.total_files
         percentage = (job.completed_count / total * 100) if total > 0 else 0
 
-        # 估算剩余时间
-        estimated = None
-        if job.started_at and job.completed_count > 0:
-            elapsed = (datetime.now(UTC) - job.started_at).total_seconds()
-            rate = job.completed_count / elapsed
-            remaining = total - job.completed_count
-            if rate > 0:
-                remaining_seconds = remaining / rate
-                hours = int(remaining_seconds // 3600)
-                minutes = int((remaining_seconds % 3600) // 60)
-                estimated = f"{hours}h {minutes}m"
+        estimated = self._estimate_remaining(job)
 
         tasks_info = [
             TaskStatusInfo(
@@ -751,6 +741,25 @@ class UploadJobService:
 
         return task
 
+    def _estimate_remaining(self, job: UploadJob) -> str | None:
+        """估算剩餘上傳時間。"""
+        if not job.started_at or job.completed_count == 0:
+            return None
+
+        elapsed = (datetime.now(UTC) - job.started_at).total_seconds()
+        rate = job.completed_count / elapsed
+        if rate <= 0:
+            return None
+
+        remaining = job.total_files - job.completed_count
+        remaining_seconds = remaining / rate
+        hours = int(remaining_seconds // 3600)
+        minutes = int((remaining_seconds % 3600) // 60)
+
+        if hours > 0:
+            return f"{hours} 小時 {minutes} 分鐘"
+        return f"{minutes} 分鐘"
+
     def _job_to_status_response(self, job: UploadJob) -> UploadJobStatusResponse:
         """将 UploadJob 转换为 UploadJobStatusResponse。"""
         total = job.total_files
@@ -781,5 +790,5 @@ class UploadJobService:
             created_at=job.created_at,
             started_at=job.started_at,
             completed_at=job.completed_at,
-            estimated_remaining=None,
+            estimated_remaining=self._estimate_remaining(job),
         )
