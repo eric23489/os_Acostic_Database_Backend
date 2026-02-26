@@ -1,12 +1,24 @@
 import logging
 from datetime import UTC, datetime
 
-from fastapi import HTTPException, status
+from botocore.exceptions import ClientError
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
-from botocore.exceptions import ClientError
-
+from app.core.exceptions import (
+    AUDIO_CONCURRENT_CONFLICT,
+    AUDIO_DB_COMMIT_FAILED,
+    AUDIO_NOT_FOUND,
+    AUDIO_OBJECT_KEY_COLLISION,
+    AUDIO_OBJECT_KEY_DUPLICATE,
+    AUDIO_OBJECT_KEY_RESERVED,
+    AUDIO_UPLOAD_NOT_COMPLETED,
+    DEPLOYMENT_NOT_FOUND,
+    MINIO_DELETE_FAILED,
+    PERMISSION_RESTORE_DENIED,
+    POINT_NOT_FOUND,
+    PROJECT_NOT_FOUND,
+)
 from app.enums.enums import UploadStatus, UserRole
 from app.models.audio import AudioInfo
 from app.models.deployment import DeploymentInfo
@@ -39,10 +51,7 @@ class AudioService:
             .first()
         )
         if not audio:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Audio not found",
-            )
+            raise AUDIO_NOT_FOUND
         return audio
 
     def get_audio_details(self, audio_id: int) -> AudioInfo:
@@ -58,9 +67,7 @@ class AudioService:
             .first()
         )
         if not audio:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Audio not found"
-            )
+            raise AUDIO_NOT_FOUND
         return audio
 
     def get_audios(
@@ -112,10 +119,7 @@ class AudioService:
             )
             .first()
         ):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Audio with this object_key already exists",
-            )
+            raise AUDIO_OBJECT_KEY_DUPLICATE
 
         # Check if object_key is reserved by a soft-deleted audio
         if (
@@ -126,10 +130,7 @@ class AudioService:
             )
             .first()
         ):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="object_key reserved by deleted audio. Hard delete to release.",
-            )
+            raise AUDIO_OBJECT_KEY_RESERVED
 
         audio_data = audio_in.model_dump()
         db_obj = AudioInfo(**audio_data)
@@ -170,17 +171,11 @@ class AudioService:
         """
         audio = self.db.query(AudioInfo).filter(AudioInfo.id == audio_id).first()
         if not audio:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Audio not found",
-            )
+            raise AUDIO_NOT_FOUND
 
         is_admin = current_user.role == UserRole.ADMIN.value
         if not is_admin and current_user.id != audio.deleted_by:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only the deleter or admin can restore this resource",
-            )
+            raise PERMISSION_RESTORE_DENIED
 
         # Check for object_key collision
         if (
@@ -192,13 +187,7 @@ class AudioService:
             )
             .first()
         ):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=(
-                    "Active audio with this object_key already exists. "
-                    "Cannot restore."
-                ),
-            )
+            raise AUDIO_OBJECT_KEY_COLLISION
 
         audio.is_deleted = False
         audio.deleted_at = None
@@ -220,10 +209,7 @@ class AudioService:
         # 查詢 Audio (包含已軟刪除)
         audio = self.db.query(AudioInfo).filter(AudioInfo.id == audio_id).first()
         if not audio:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Audio not found",
-            )
+            raise AUDIO_NOT_FOUND
 
         # 取得 bucket 名稱
         deployment = (
@@ -232,19 +218,13 @@ class AudioService:
             .first()
         )
         if not deployment:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Parent deployment not found",
-            )
+            raise DEPLOYMENT_NOT_FOUND
 
         point = (
             self.db.query(PointInfo).filter(PointInfo.id == deployment.point_id).first()
         )
         if not point:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Parent point not found",
-            )
+            raise POINT_NOT_FOUND
 
         project = (
             self.db.query(ProjectInfo)
@@ -252,10 +232,7 @@ class AudioService:
             .first()
         )
         if not project:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Parent project not found",
-            )
+            raise PROJECT_NOT_FOUND
         bucket_name = project.name
 
         # 刪除 MinIO 物件
@@ -268,10 +245,7 @@ class AudioService:
                 "object_key=%s bucket=%s error=%s",
                 audio.object_key, bucket_name, e,
             )
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail="Failed to delete file from storage. Database record was not deleted.",
-            )
+            raise MINIO_DELETE_FAILED
 
         # 刪除 DB 記錄
         self.db.query(AudioInfo).filter(AudioInfo.id == audio_id).delete()
@@ -309,10 +283,7 @@ class AudioService:
             .first()
         )
         if not deployment:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Deployment not found",
-            )
+            raise DEPLOYMENT_NOT_FOUND
 
         object_keys = [item.object_key for item in request.audios]
         active_keys = self._get_existing_active_keys(set(object_keys))
@@ -389,10 +360,7 @@ class AudioService:
             logger.warning(
                 "create_audios_batch flush IntegrityError (concurrent write conflict): %s", e
             )
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Concurrent write conflict on object_key. Please retry.",
-            )
+            raise AUDIO_CONCURRENT_CONFLICT
 
         # 補充 created 結果（flush 後才有 ID）
         for idx, audio in to_create:
@@ -413,10 +381,7 @@ class AudioService:
                 "create_audios_batch commit failed. deployment_id=%s error=%s",
                 deployment_id, e,
             )
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to save audio records. Please retry.",
-            )
+            raise AUDIO_DB_COMMIT_FAILED
 
         # 依照原始順序重建結果列表，正確處理 batch 內重複 key 的排序
         results = [indexed_results[i] for i in range(len(request.audios))]
@@ -486,20 +451,11 @@ class AudioService:
             .first()
         )
         if not audio:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Audio not found",
-            )
+            raise AUDIO_NOT_FOUND
 
         # 驗證上傳狀態
         if audio.upload_status != UploadStatus.COMPLETED:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=(
-                    f"Audio upload not completed. "
-                    f"Current status: {audio.upload_status}"
-                ),
-            )
+            raise AUDIO_UPLOAD_NOT_COMPLETED
 
         # 取得 bucket 名稱 (project.name)
         bucket_name = audio.deployment.point.project.name

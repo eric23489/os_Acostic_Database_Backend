@@ -4,7 +4,7 @@ import pytest
 from datetime import datetime, UTC
 from unittest.mock import MagicMock, patch
 
-from fastapi import HTTPException
+from app.core.exceptions import AppException
 
 from app.services.user_service import UserService
 from app.schemas.user import UserCreate, UserUpdate
@@ -47,11 +47,11 @@ class TestUserServiceCreateUser:
             password="password123",
         )
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(AppException) as exc_info:
             service.create_user(user_data)
 
-        assert exc_info.value.status_code == 400
-        assert "already exists" in exc_info.value.detail
+        assert exc_info.value.http_status == 400
+        assert "already exists" in exc_info.value.message
 
 
 class TestUserServiceAuthenticateUser:
@@ -170,11 +170,11 @@ class TestUserServiceUpdateUser:
         service = UserService(mock_db)
         update_data = UserUpdate(full_name="Updated Name")
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(AppException) as exc_info:
             service.update_user(999, update_data)
 
-        assert exc_info.value.status_code == 404
-        assert "not found" in exc_info.value.detail
+        assert exc_info.value.http_status == 404
+        assert "not found" in exc_info.value.message
 
     def test_update_user_with_password(self):
         """Should update password when provided."""
@@ -217,10 +217,10 @@ class TestUserServiceDeleteUser:
 
         service = UserService(mock_db)
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(AppException) as exc_info:
             service.delete_user(999, deleted_by_id=1)
 
-        assert exc_info.value.status_code == 404
+        assert exc_info.value.http_status == 404
 
 
 class TestUserServiceRestoreUser:
@@ -254,10 +254,10 @@ class TestUserServiceRestoreUser:
 
         service = UserService(mock_db)
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(AppException) as exc_info:
             service.restore_user(999)
 
-        assert exc_info.value.status_code == 404
+        assert exc_info.value.http_status == 404
 
     def test_restore_user_email_collision(self):
         """Should raise error when active user with same email exists."""
@@ -274,11 +274,11 @@ class TestUserServiceRestoreUser:
 
         service = UserService(mock_db)
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(AppException) as exc_info:
             service.restore_user(1)
 
-        assert exc_info.value.status_code == 400
-        assert "Cannot restore" in exc_info.value.detail
+        assert exc_info.value.http_status == 400
+        assert "Cannot restore" in exc_info.value.message
 
 
 class TestUserServiceSetPassword:
@@ -306,10 +306,10 @@ class TestUserServiceSetPassword:
 
         service = UserService(mock_db)
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(AppException) as exc_info:
             service.set_password(999, "newpassword123")
 
-        assert exc_info.value.status_code == 404
+        assert exc_info.value.http_status == 404
 
     def test_set_password_too_short(self):
         """Should raise error when password is too short."""
@@ -319,8 +319,8 @@ class TestUserServiceSetPassword:
 
         service = UserService(mock_db)
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(AppException) as exc_info:
             service.set_password(1, "short")
 
-        assert exc_info.value.status_code == 400
-        assert "8 characters" in exc_info.value.detail
+        assert exc_info.value.http_status == 400
+        assert "8 characters" in exc_info.value.message

@@ -4,6 +4,13 @@ from datetime import UTC, datetime, timedelta
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session, selectinload
 
+from app.core.exceptions import (
+    PROJECT_NAME_COLLISION,
+    PROJECT_NAME_DUPLICATE,
+    PROJECT_NAME_RESERVED,
+    PROJECT_NOT_FOUND,
+)
+
 from app.core.minio import get_s3_client
 from app.models.audio import AudioInfo
 from app.models.deployment import DeploymentInfo
@@ -29,10 +36,7 @@ class ProjectService:
             .first()
         )
         if not project:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Project not found",
-            )
+            raise PROJECT_NOT_FOUND
         return project
 
     def get_projects(
@@ -106,10 +110,7 @@ class ProjectService:
             .filter(ProjectInfo.is_deleted.is_(False))
             .first()
         ):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Project with this name already exists",
-            )
+            raise PROJECT_NAME_DUPLICATE
 
         # Check if Chinese name (name_zh) exists, if provided
         if project_in.name_zh and (
@@ -118,10 +119,7 @@ class ProjectService:
             .filter(ProjectInfo.is_deleted.is_(False))
             .first()
         ):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Project with this Chinese name (name_zh) already exists",
-            )
+            raise PROJECT_NAME_DUPLICATE
 
         # Check if name is reserved by a soft-deleted project
         if (
@@ -130,10 +128,7 @@ class ProjectService:
             .filter(ProjectInfo.is_deleted.is_(True))
             .first()
         ):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Name reserved by deleted project. Hard delete to release.",
-            )
+            raise PROJECT_NAME_RESERVED
 
         # Check if name_zh is reserved by a soft-deleted project
         if project_in.name_zh and (
@@ -142,10 +137,7 @@ class ProjectService:
             .filter(ProjectInfo.is_deleted.is_(True))
             .first()
         ):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="name_zh reserved by deleted project. Hard delete to release.",
-            )
+            raise PROJECT_NAME_RESERVED
 
         db_obj = ProjectInfo(**project_in.model_dump())
         self.db.add(db_obj)
@@ -178,10 +170,7 @@ class ProjectService:
                 )
                 .first()
             ):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Project with this Chinese name (name_zh) already exists",
-                )
+                raise PROJECT_NAME_DUPLICATE
 
         for field, value in update_data.items():
             setattr(project, field, value)
@@ -259,10 +248,7 @@ class ProjectService:
             self.db.query(ProjectInfo).filter(ProjectInfo.id == project_id).first()
         )
         if not project:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Project not found",
-            )
+            raise PROJECT_NOT_FOUND
 
         # Check for name collision before restore
         if (
@@ -274,10 +260,7 @@ class ProjectService:
             )
             .first()
         ):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Active project with this name already exists. Cannot restore.",
-            )
+            raise PROJECT_NAME_COLLISION
 
         # Check for name_zh collision before restore
         if project.name_zh and (
@@ -289,10 +272,7 @@ class ProjectService:
             )
             .first()
         ):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Active project with this name_zh already exists. Cannot restore.",
-            )
+            raise PROJECT_NAME_COLLISION
 
         # Cascade Restore Logic
         # Only restore child records deleted at the same time as parent
@@ -359,10 +339,7 @@ class ProjectService:
             self.db.query(ProjectInfo).filter(ProjectInfo.id == project_id).first()
         )
         if not project:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Project not found",
-            )
+            raise PROJECT_NOT_FOUND
 
         project_name = project.name
 

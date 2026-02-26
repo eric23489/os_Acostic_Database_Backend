@@ -4,10 +4,17 @@ from datetime import UTC, datetime
 from urllib.parse import urlencode
 
 import requests
-from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.exceptions import (
+    AUTH_USER_INACTIVE,
+    OAUTH_ACCOUNT_IN_USE,
+    OAUTH_ALREADY_LINKED,
+    OAUTH_CODE_EXCHANGE_FAILED,
+    OAUTH_NOT_CONFIGURED,
+    OAUTH_NOT_LINKED,
+)
 from app.core.security import create_access_token
 from app.models.user import UserInfo
 
@@ -33,10 +40,7 @@ class OAuthService:
             Google OAuth authorization URL.
         """
         if not settings.google_oauth_client_id:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Google OAuth is not configured",
-            )
+            raise OAUTH_NOT_CONFIGURED
 
         params = {
             "client_id": settings.google_oauth_client_id,
@@ -62,10 +66,7 @@ class OAuthService:
         client_id = settings.google_oauth_client_id
         client_secret = settings.google_oauth_client_secret
         if not client_id or not client_secret:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Google OAuth is not configured",
-            )
+            raise OAUTH_NOT_CONFIGURED
 
         response = requests.post(
             GOOGLE_TOKEN_URL,
@@ -80,10 +81,7 @@ class OAuthService:
         )
 
         if response.status_code != 200:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Failed to exchange authorization code",
-            )
+            raise OAUTH_CODE_EXCHANGE_FAILED
 
         return response.json()
 
@@ -103,10 +101,7 @@ class OAuthService:
         )
 
         if response.status_code != 200:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Failed to fetch user info from Google",
-            )
+            raise OAUTH_CODE_EXCHANGE_FAILED
 
         return response.json()
 
@@ -129,10 +124,7 @@ class OAuthService:
         access_token = tokens.get("access_token")
 
         if not access_token:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="No access token in response",
-            )
+            raise OAUTH_CODE_EXCHANGE_FAILED
 
         # Get user info from Google
         google_user = self.get_google_user_info(access_token)
@@ -141,10 +133,7 @@ class OAuthService:
         name = google_user.get("name")
 
         if not google_sub or not email:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid user info from Google",
-            )
+            raise OAUTH_CODE_EXCHANGE_FAILED
 
         # Check if user with this Google sub already exists
         existing_oauth_user = (
@@ -160,10 +149,7 @@ class OAuthService:
         if existing_oauth_user:
             # Check if account is deactivated
             if not existing_oauth_user.is_active:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="This account has been deactivated",
-                )
+                raise AUTH_USER_INACTIVE
             # Existing Google user - update last login
             existing_oauth_user.last_login_at = datetime.now(UTC)
             self.db.commit()
@@ -182,10 +168,7 @@ class OAuthService:
         if existing_email_user:
             # Check if account is deactivated
             if not existing_email_user.is_active:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="This account has been deactivated",
-                )
+                raise AUTH_USER_INACTIVE
             # Auto-link Google to existing local account
             existing_email_user.oauth_provider = "google"
             existing_email_user.oauth_sub = google_sub
@@ -205,10 +188,7 @@ class OAuthService:
         )
 
         if deleted_user:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="This account has been deactivated. Please contact support.",
-            )
+            raise AUTH_USER_INACTIVE
 
         # Create new user
         new_user = UserInfo(
@@ -238,29 +218,20 @@ class OAuthService:
         """
         # Check if already linked
         if user.oauth_provider:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Account already linked to Google",
-            )
+            raise OAUTH_ALREADY_LINKED
 
         # Exchange code and get Google user info
         tokens = self.exchange_code_for_tokens(code)
         access_token = tokens.get("access_token")
 
         if not access_token:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="No access token in response",
-            )
+            raise OAUTH_CODE_EXCHANGE_FAILED
 
         google_user = self.get_google_user_info(access_token)
         google_sub = google_user.get("sub")
 
         if not google_sub:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid user info from Google",
-            )
+            raise OAUTH_CODE_EXCHANGE_FAILED
 
         # Check if this Google account is already linked to another user
         existing_oauth_user = (
@@ -275,10 +246,7 @@ class OAuthService:
         )
 
         if existing_oauth_user:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="This Google account is already linked to another user",
-            )
+            raise OAUTH_ACCOUNT_IN_USE
 
         # Link the account
         user.oauth_provider = "google"
@@ -299,13 +267,12 @@ class OAuthService:
         """
         # Check if linked
         if not user.oauth_provider:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Account is not linked to Google",
-            )
+            raise OAUTH_NOT_LINKED
 
         # Check if user has password (required to unlink)
         if not user.password_hash:
+            from fastapi import HTTPException, status
+
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Please set a password before unlinking Google account",

@@ -15,7 +15,7 @@ from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
-from fastapi import HTTPException
+from app.core.exceptions import AppException
 
 from app.enums.enums import DeploymentStatus
 from app.schemas.deployment import DeploymentCreate, DeploymentUpdate
@@ -50,11 +50,11 @@ class TestDeploymentServiceGetDeployment:
 
         service = DeploymentService(mock_db)
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(AppException) as exc_info:
             service.get_deployment(999)
 
-        assert exc_info.value.status_code == 404
-        assert "not found" in exc_info.value.detail
+        assert exc_info.value.http_status == 404
+        assert "not found" in exc_info.value.message
 
 
 # =============================================================================
@@ -88,10 +88,10 @@ class TestDeploymentServiceGetDeploymentDetails:
 
         service = DeploymentService(mock_db)
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(AppException) as exc_info:
             service.get_deployment_details(999)
 
-        assert exc_info.value.status_code == 404
+        assert exc_info.value.http_status == 404
 
 
 # =============================================================================
@@ -240,10 +240,10 @@ class TestDeploymentServiceUpdateDeployment:
 
         service = DeploymentService(mock_db)
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(AppException) as exc_info:
             service.update_deployment(999, update_data)
 
-        assert exc_info.value.status_code == 404
+        assert exc_info.value.http_status == 404
 
 
 # =============================================================================
@@ -326,10 +326,10 @@ class TestDeploymentServiceRestoreDeployment:
 
         service = DeploymentService(mock_db)
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(AppException) as exc_info:
             service.restore_deployment(999)
 
-        assert exc_info.value.status_code == 404
+        assert exc_info.value.http_status == 404
 
     def test_restore_deployment_phase_collision_raises_400(self):
         """phase 衝突觸發 400 錯誤。"""
@@ -350,8 +350,8 @@ class TestDeploymentServiceRestoreDeployment:
 
         service = DeploymentService(mock_db)
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(AppException) as exc_info:
             service.restore_deployment(1)
 
-        assert exc_info.value.status_code == 400
-        assert "Cannot restore" in exc_info.value.detail
+        assert exc_info.value.http_status == 400
+        assert "Cannot restore" in exc_info.value.message

@@ -3,6 +3,7 @@ from unittest.mock import patch
 from fastapi import HTTPException
 
 from app.core.config import settings
+from app.core.exceptions import RECORDER_IDENTIFIER_COLLISION
 from app.schemas.recorder import RecorderResponse
 
 
@@ -100,10 +101,7 @@ def test_update_recorder(client):
 def test_create_recorder_duplicate(client):
     with patch("app.api.v1.endpoints.api_recorders.RecorderService") as MockService:
         mock_service = MockService.return_value
-        mock_service.create_recorder.side_effect = HTTPException(
-            status_code=400,
-            detail="Recorder with brand 'Brand', model 'Model', and SN 'SN123' already exists.",
-        )
+        mock_service.create_recorder.side_effect = RECORDER_IDENTIFIER_COLLISION
 
         response = client.post(
             f"{settings.api_prefix}/recorders/",
@@ -115,5 +113,5 @@ def test_create_recorder_duplicate(client):
             },
         )
         assert response.status_code == 400
-        assert "already exists" in response.json()["detail"]
+        assert "already exists" in response.json()["message"]
         mock_service.create_recorder.assert_called_once()

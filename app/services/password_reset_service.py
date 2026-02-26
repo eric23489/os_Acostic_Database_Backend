@@ -3,10 +3,15 @@
 import secrets
 from datetime import UTC, datetime, timedelta
 
-from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.exceptions import (
+    AUTH_USER_INACTIVE,
+    PASSWORD_RESET_TOKEN_EXPIRED,
+    PASSWORD_RESET_TOKEN_INVALID,
+    USER_PASSWORD_TOO_SHORT,
+)
 from app.core.security import hash_password
 from app.models.user import UserInfo
 
@@ -42,10 +47,7 @@ class PasswordResetService:
 
         # Check if account is deactivated
         if not user.is_active:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="This account has been deactivated",
-            )
+            raise AUTH_USER_INACTIVE
 
         has_google_oauth = user.oauth_provider == "google"
         has_password = user.password_hash is not None
@@ -86,10 +88,7 @@ class PasswordResetService:
         )
 
         if not user:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid or expired reset token",
-            )
+            raise PASSWORD_RESET_TOKEN_INVALID
 
         # Check if token is expired
         if (
@@ -101,17 +100,11 @@ class PasswordResetService:
             user.reset_token_expires_at = None
             self.db.commit()
 
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Reset token has expired. Please request a new one.",
-            )
+            raise PASSWORD_RESET_TOKEN_EXPIRED
 
         # Validate password length
         if len(new_password) < 8:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Password must be at least 8 characters",
-            )
+            raise USER_PASSWORD_TOO_SHORT
 
         # Update password and clear token
         user.password_hash = hash_password(new_password)

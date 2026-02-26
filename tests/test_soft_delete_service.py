@@ -13,8 +13,7 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch, call
 
 import pytest
-from fastapi import HTTPException
-
+from app.core.exceptions import AppException
 from app.enums.enums import UserRole
 from app.services.audio_service import AudioService
 from app.services.deployment_service import DeploymentService
@@ -105,11 +104,11 @@ class TestProjectServiceDelete:
             None
         )
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(AppException) as exc_info:
             service.delete_project(999, user_id=1)
 
-        assert exc_info.value.status_code == 404
-        assert "not found" in exc_info.value.detail.lower()
+        assert exc_info.value.http_status == 404
+        assert "not found" in exc_info.value.message.lower()
 
 
 class TestProjectServiceRestore:
@@ -182,11 +181,11 @@ class TestProjectServiceRestore:
             mock_existing
         )
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(AppException) as exc_info:
             service.restore_project(1)
 
-        assert exc_info.value.status_code == 400
-        assert "already exists" in exc_info.value.detail.lower()
+        assert exc_info.value.http_status == 400
+        assert "already exists" in exc_info.value.message.lower()
 
 
 class TestProjectServiceDeleteAudios:
@@ -366,10 +365,10 @@ class TestDeploymentServiceRestore:
             mock_existing
         )
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(AppException) as exc_info:
             service.restore_deployment(1)
 
-        assert exc_info.value.status_code == 400
+        assert exc_info.value.http_status == 400
 
 
 # =============================================================================
@@ -413,10 +412,10 @@ class TestAudioServiceDelete:
 
         mock_db.query.return_value.filter.return_value.first.return_value = None
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(AppException) as exc_info:
             service.delete_audio(999, user_id=1)
 
-        assert exc_info.value.status_code == 404
+        assert exc_info.value.http_status == 404
 
 
 class TestAudioServiceRestore:
@@ -487,10 +486,10 @@ class TestAudioServiceRestore:
         mock_current_user.id = 1
         mock_current_user.role = UserRole.ADMIN.value
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(AppException) as exc_info:
             service.restore_audio(1, mock_current_user)
 
-        assert exc_info.value.status_code == 400
+        assert exc_info.value.http_status == 400
 
 
 # =============================================================================
@@ -593,7 +592,7 @@ class TestRecorderServiceRestore:
             mock_existing
         )
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(AppException) as exc_info:
             service.restore_recorder(1)
 
-        assert exc_info.value.status_code == 400
+        assert exc_info.value.http_status == 400

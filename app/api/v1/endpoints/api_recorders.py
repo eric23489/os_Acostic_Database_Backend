@@ -1,7 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_user
+from app.core.exceptions import (
+    PERMISSION_ADMIN_REQUIRED,
+    PERMISSION_RESTORE_DENIED,
+    RECORDER_NOT_FOUND,
+)
 from app.db.session import get_db
 from app.models.recorder import RecorderInfo
 from app.models.user import UserRole
@@ -89,18 +94,12 @@ def restore_recorder(
 ):
     recorder = db.query(RecorderInfo).filter(RecorderInfo.id == recorder_id).first()
     if not recorder:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Recorder not found",
-        )
+        raise RECORDER_NOT_FOUND
     if (
         current_user.role != UserRole.ADMIN.value
         and current_user.id != recorder.deleted_by
     ):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only the deleter or admin can restore this resource",
-        )
+        raise PERMISSION_RESTORE_DENIED
     return RecorderService(db).restore_recorder(recorder_id)
 
 
@@ -116,8 +115,5 @@ def hard_delete_recorder(
     注意：如果有 Deployment 引用此 Recorder，將無法刪除。
     """
     if current_user.role != UserRole.ADMIN.value:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin permission required for permanent deletion",
-        )
+        raise PERMISSION_ADMIN_REQUIRED
     return RecorderService(db).hard_delete_recorder(recorder_id)

@@ -18,6 +18,7 @@ import pytest
 from fastapi import HTTPException
 
 from app.core.config import settings
+from app.core.exceptions import AppException
 from app.enums.enums import UserRole
 
 
@@ -63,7 +64,7 @@ class TestProjectHardDelete:
         response = client.delete(f"{settings.api_prefix}/projects/1/permanent")
 
         assert response.status_code == 403
-        assert "Admin" in response.json()["detail"]
+        assert "Admin" in response.json()["message"]
 
     def test_hard_delete_project_success(self, client):
         """
@@ -234,7 +235,7 @@ class TestRecorderHardDelete:
         response = client.delete(f"{settings.api_prefix}/recorders/1/permanent")
 
         assert response.status_code == 403
-        assert "Admin" in response.json()["detail"]
+        assert "Admin" in response.json()["message"]
 
     def test_hard_delete_recorder_success(self, client):
         """測試成功永久刪除 Recorder。"""
@@ -344,10 +345,10 @@ class TestProjectServiceHardDelete:
 
         service = ProjectService(mock_db)
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(AppException) as exc_info:
             service.hard_delete_project(999)
 
-        assert exc_info.value.status_code == 404
+        assert exc_info.value.http_status == 404
 
 
 class TestRecorderServiceHardDelete:
@@ -411,10 +412,10 @@ class TestRecorderServiceHardDelete:
 
         service = RecorderService(mock_db)
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(AppException) as exc_info:
             service.hard_delete_recorder(999)
 
-        assert exc_info.value.status_code == 404
+        assert exc_info.value.http_status == 404
 
 
 class TestAudioServiceHardDelete:
@@ -657,11 +658,11 @@ class TestNameRelease:
 
             service = ProjectService(mock_db)
 
-            with pytest.raises(HTTPException) as exc_info:
+            with pytest.raises(AppException) as exc_info:
                 service.create_project(project_in)
 
-            assert exc_info.value.status_code == 400
-            assert "Hard delete" in exc_info.value.detail
+            assert exc_info.value.http_status == 400
+            assert "Hard delete" in exc_info.value.message
 
     def test_name_available_after_hard_delete(self):
         """
@@ -727,8 +728,8 @@ class TestRecorderNameRelease:
 
         service = RecorderService(mock_db)
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(AppException) as exc_info:
             service.create_recorder(recorder_in)
 
-        assert exc_info.value.status_code == 400
-        assert "Hard delete" in exc_info.value.detail
+        assert exc_info.value.http_status == 400
+        assert "Hard delete" in exc_info.value.message

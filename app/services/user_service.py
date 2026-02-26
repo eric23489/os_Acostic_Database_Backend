@@ -1,8 +1,13 @@
 from datetime import UTC, datetime
 
-from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.core.exceptions import (
+    USER_EMAIL_COLLISION,
+    USER_EMAIL_DUPLICATE,
+    USER_NOT_FOUND,
+    USER_PASSWORD_TOO_SHORT,
+)
 from app.core.security import hash_password, verify_password
 from app.enums.enums import UserRole
 from app.models.user import UserInfo
@@ -23,10 +28,7 @@ class UserService:
             .first()
         )
         if existing_user:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="UserInfo with the same email already exists.",
-            )
+            raise USER_EMAIL_DUPLICATE
 
         db_user = UserInfo(
             email=user.email,
@@ -110,10 +112,7 @@ class UserService:
             .first()
         )
         if not user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found",
-            )
+            raise USER_NOT_FOUND
 
         update_data = user_in.model_dump(exclude_unset=True)
         if "password" in update_data:
@@ -136,10 +135,7 @@ class UserService:
             .first()
         )
         if not user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found",
-            )
+            raise USER_NOT_FOUND
 
         user.is_deleted = True
         user.deleted_at = datetime.now(UTC)
@@ -152,10 +148,7 @@ class UserService:
     def restore_user(self, user_id: int) -> UserInfo:
         user = self.db.query(UserInfo).filter(UserInfo.id == user_id).first()
         if not user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found",
-            )
+            raise USER_NOT_FOUND
 
         # Check for email collision
         if (
@@ -167,10 +160,7 @@ class UserService:
             )
             .first()
         ):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Active user with this email already exists. Cannot restore.",
-            )
+            raise USER_EMAIL_COLLISION
 
         user.is_deleted = False
         user.deleted_at = None
@@ -196,17 +186,11 @@ class UserService:
             .first()
         )
         if not user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found",
-            )
+            raise USER_NOT_FOUND
 
         # Validate password length
         if len(password) < 8:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Password must be at least 8 characters",
-            )
+            raise USER_PASSWORD_TOO_SHORT
 
         user.password_hash = hash_password(password)
         self.db.add(user)

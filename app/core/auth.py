@@ -1,12 +1,17 @@
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.exceptions import (
+    AUTH_TOKEN_INVALID,
+    AUTH_USER_INACTIVE,
+    PERMISSION_DENIED,
+)
 from app.db.session import get_db
-from app.models.user import UserInfo
 from app.enums.enums import UserRole
+from app.models.user import UserInfo
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.api_prefix}/users/login")
 
@@ -14,28 +19,21 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.api_prefix}/users/logi
 def get_current_user(
     token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)
 ):
-    credentials_error = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
     try:
         payload = jwt.decode(
             token, settings.secret_key, algorithms=[settings.algorithm]
         )
         email: str | None = payload.get("sub")
         if email is None:
-            raise credentials_error
+            raise AUTH_TOKEN_INVALID
     except JWTError:
-        raise credentials_error
+        raise AUTH_TOKEN_INVALID
 
     user = db.query(UserInfo).filter(UserInfo.email == email).first()
     if not user:
-        raise credentials_error
+        raise AUTH_TOKEN_INVALID
     if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Inactive user"
-        )
+        raise AUTH_USER_INACTIVE
     return user
 
 
@@ -43,8 +41,5 @@ def get_current_admin_user(
     current_user: UserInfo = Depends(get_current_user),
 ) -> UserInfo:
     if current_user.role != UserRole.ADMIN.value:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="The user doesn't have enough privileges",
-        )
+        raise PERMISSION_DENIED
     return current_user

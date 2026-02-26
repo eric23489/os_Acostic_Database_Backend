@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from app.core.config import settings
+from app.core.exceptions import PASSWORD_RESET_TOKEN_EXPIRED, PASSWORD_RESET_TOKEN_INVALID
 from app.enums.enums import UserRole
 
 
@@ -147,15 +148,11 @@ class TestResetPassword:
 
     def test_reset_password_invalid_token(self, client, mock_db):
         """Test reset password with invalid token."""
-        from fastapi import HTTPException
-
         with patch(
             "app.api.v1.endpoints.api_auth.PasswordResetService"
         ) as MockService:
             mock_service = MockService.return_value
-            mock_service.reset_password.side_effect = HTTPException(
-                status_code=400, detail="Invalid or expired reset token"
-            )
+            mock_service.reset_password.side_effect = PASSWORD_RESET_TOKEN_INVALID
 
             response = client.post(
                 f"{settings.api_prefix}/auth/reset-password",
@@ -163,20 +160,15 @@ class TestResetPassword:
             )
 
             assert response.status_code == 400
-            assert "invalid" in response.json()["detail"].lower()
+            assert "invalid" in response.json()["message"].lower()
 
     def test_reset_password_expired_token(self, client, mock_db):
         """Test reset password with expired token."""
-        from fastapi import HTTPException
-
         with patch(
             "app.api.v1.endpoints.api_auth.PasswordResetService"
         ) as MockService:
             mock_service = MockService.return_value
-            mock_service.reset_password.side_effect = HTTPException(
-                status_code=400,
-                detail="Reset token has expired. Please request a new one.",
-            )
+            mock_service.reset_password.side_effect = PASSWORD_RESET_TOKEN_EXPIRED
 
             response = client.post(
                 f"{settings.api_prefix}/auth/reset-password",
@@ -184,7 +176,7 @@ class TestResetPassword:
             )
 
             assert response.status_code == 400
-            assert "expired" in response.json()["detail"].lower()
+            assert "expired" in response.json()["message"].lower()
 
     def test_reset_password_too_short(self, client, mock_db):
         """Test reset password with too short password."""

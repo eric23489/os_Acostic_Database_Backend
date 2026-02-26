@@ -1,10 +1,15 @@
 import logging
 from datetime import UTC, datetime, timedelta
 
-from fastapi import HTTPException, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
+from app.core.exceptions import (
+    DEPLOYMENT_NOT_FOUND,
+    DEPLOYMENT_PHASE_COLLISION,
+    POINT_NOT_FOUND,
+    PROJECT_NOT_FOUND,
+)
 from app.core.minio import get_s3_client
 from app.models.audio import AudioInfo
 from app.models.deployment import DeploymentInfo
@@ -30,10 +35,7 @@ class DeploymentService:
             .first()
         )
         if not deployment:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Deployment not found",
-            )
+            raise DEPLOYMENT_NOT_FOUND
         return deployment
 
     def get_deployment_details(self, deployment_id: int) -> DeploymentInfo:
@@ -49,10 +51,7 @@ class DeploymentService:
             .first()
         )
         if not deployment:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Deployment not found",
-            )
+            raise DEPLOYMENT_NOT_FOUND
         return deployment
 
     def get_deployments(
@@ -164,10 +163,7 @@ class DeploymentService:
             .first()
         )
         if not deployment:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Deployment not found",
-            )
+            raise DEPLOYMENT_NOT_FOUND
 
         # Check for unique constraint collision before restore
         # Constraint: point_id + phase
@@ -181,10 +177,7 @@ class DeploymentService:
             )
             .first()
         ):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Active deployment with this phase already exists for the point. Cannot restore.",
-            )
+            raise DEPLOYMENT_PHASE_COLLISION
 
         # Cascade Restore Logic
         # Only restore child records deleted at the same time as parent
@@ -229,10 +222,7 @@ class DeploymentService:
             .first()
         )
         if not deployment:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Deployment not found",
-            )
+            raise DEPLOYMENT_NOT_FOUND
 
         # 取得 bucket 名稱
         point = (
@@ -241,10 +231,7 @@ class DeploymentService:
             .first()
         )
         if not point:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Parent point not found",
-            )
+            raise POINT_NOT_FOUND
 
         project = (
             self.db.query(ProjectInfo)
@@ -252,10 +239,7 @@ class DeploymentService:
             .first()
         )
         if not project:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Parent project not found",
-            )
+            raise PROJECT_NOT_FOUND
         bucket_name = project.name
 
         # 取得相關 Audio

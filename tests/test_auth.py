@@ -4,7 +4,7 @@ import pytest
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
-from fastapi import HTTPException
+from app.core.exceptions import AppException
 from jose import jwt
 
 from app.core.auth import get_current_user, get_current_admin_user
@@ -39,11 +39,11 @@ class TestGetCurrentUser:
         mock_db = MagicMock()
         invalid_token = "invalid.token.here"
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(AppException) as exc_info:
             get_current_user(token=invalid_token, db=mock_db)
 
-        assert exc_info.value.status_code == 401
-        assert "Could not validate credentials" in exc_info.value.detail
+        assert exc_info.value.http_status == 401
+        assert "Could not validate credentials" in exc_info.value.message
 
     def test_get_current_user_expired_token(self):
         """Should raise 401 for expired token."""
@@ -57,10 +57,10 @@ class TestGetCurrentUser:
             algorithm=settings.algorithm,
         )
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(AppException) as exc_info:
             get_current_user(token=token, db=mock_db)
 
-        assert exc_info.value.status_code == 401
+        assert exc_info.value.http_status == 401
 
     def test_get_current_user_no_email_in_token(self):
         """Should raise 401 when token has no email (sub)."""
@@ -74,10 +74,10 @@ class TestGetCurrentUser:
             algorithm=settings.algorithm,
         )
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(AppException) as exc_info:
             get_current_user(token=token, db=mock_db)
 
-        assert exc_info.value.status_code == 401
+        assert exc_info.value.http_status == 401
 
     def test_get_current_user_user_not_found(self):
         """Should raise 401 when user not found in database."""
@@ -92,10 +92,10 @@ class TestGetCurrentUser:
             algorithm=settings.algorithm,
         )
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(AppException) as exc_info:
             get_current_user(token=token, db=mock_db)
 
-        assert exc_info.value.status_code == 401
+        assert exc_info.value.http_status == 401
 
     def test_get_current_user_inactive_user(self):
         """Should raise 400 for inactive user."""
@@ -112,11 +112,11 @@ class TestGetCurrentUser:
             algorithm=settings.algorithm,
         )
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(AppException) as exc_info:
             get_current_user(token=token, db=mock_db)
 
-        assert exc_info.value.status_code == 400
-        assert "Inactive user" in exc_info.value.detail
+        assert exc_info.value.http_status == 400
+        assert "Inactive user" in exc_info.value.message
 
     def test_get_current_user_wrong_algorithm(self):
         """Should raise 401 when token uses wrong algorithm."""
@@ -130,10 +130,10 @@ class TestGetCurrentUser:
             algorithm="HS256",
         )
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(AppException) as exc_info:
             get_current_user(token=token, db=mock_db)
 
-        assert exc_info.value.status_code == 401
+        assert exc_info.value.http_status == 401
 
 
 class TestGetCurrentAdminUser:
@@ -153,18 +153,18 @@ class TestGetCurrentAdminUser:
         mock_user = MagicMock()
         mock_user.role = UserRole.USER.value
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(AppException) as exc_info:
             get_current_admin_user(current_user=mock_user)
 
-        assert exc_info.value.status_code == 403
-        assert "doesn't have enough privileges" in exc_info.value.detail
+        assert exc_info.value.http_status == 403
+        assert "doesn't have enough privileges" in exc_info.value.message
 
     def test_get_current_admin_user_other_role(self):
         """Should raise 403 for any non-admin role."""
         mock_user = MagicMock()
         mock_user.role = "editor"  # Some other role
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(AppException) as exc_info:
             get_current_admin_user(current_user=mock_user)
 
-        assert exc_info.value.status_code == 403
+        assert exc_info.value.http_status == 403

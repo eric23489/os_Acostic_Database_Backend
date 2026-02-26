@@ -12,9 +12,16 @@ import logging
 from datetime import UTC, datetime, timedelta
 
 from botocore.exceptions import ClientError
-from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.core.exceptions import (
+    DEPLOYMENT_NOT_FOUND,
+    MINIO_UPLOAD_FAILED,
+    UPLOAD_ALL_FILES_SKIPPED,
+    UPLOAD_JOB_NOT_FOUND,
+    UPLOAD_MULTIPART_NOT_INIT,
+    UPLOAD_TASK_NOT_FOUND,
+)
 from app.enums.enums import JobStatus, TaskStatus, UploadStatus
 from app.models.audio import AudioInfo
 from app.models.deployment import DeploymentInfo
@@ -79,10 +86,7 @@ class UploadJobService:
         )
 
         if not deployment:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Deployment not found",
-            )
+            raise DEPLOYMENT_NOT_FOUND
 
         bucket = deployment.point.project.name
         point_name = deployment.point.name
@@ -178,10 +182,7 @@ class UploadJobService:
 
         # 5. 若全部 skip 則整批失敗
         if not valid_files:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="All files skipped: no valid files to upload",
-            )
+            raise UPLOAD_ALL_FILES_SKIPPED
 
         # 6. 批量建立 AudioInfo (upload_status = pending)
         audio_map: dict[str, AudioInfo] = {}
@@ -265,10 +266,7 @@ class UploadJobService:
         )
 
         if not job:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Job not found",
-            )
+            raise UPLOAD_JOB_NOT_FOUND
 
         total = job.total_files
         percentage = (job.completed_count / total * 100) if total > 0 else 0
@@ -334,10 +332,7 @@ class UploadJobService:
         )
 
         if not job:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Job not found",
-            )
+            raise UPLOAD_JOB_NOT_FOUND
 
         if job.status in [JobStatus.COMPLETED, JobStatus.CANCELLED]:
             return
@@ -423,10 +418,7 @@ class UploadJobService:
                 "complete_task DB commit failed. task_id=%s error=%s",
                 task_id, e,
             )
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to save task completion. Please retry.",
-            )
+            raise MINIO_UPLOAD_FAILED
         logger.info("Completed simple upload for task %s", task_id)
 
     # =========================================================================
@@ -488,10 +480,7 @@ class UploadJobService:
         task = self._get_task(job_id, task_id, user_id)
 
         if not task.upload_id:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Multipart upload not initialized",
-            )
+            raise UPLOAD_MULTIPART_NOT_INIT
 
         bucket = task.job.deployment.point.project.name
         parts = []
@@ -540,10 +529,7 @@ class UploadJobService:
         task = self._get_task(job_id, task_id, user_id)
 
         if not task.upload_id:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Multipart upload not initialized",
-            )
+            raise UPLOAD_MULTIPART_NOT_INIT
 
         bucket = task.job.deployment.point.project.name
 
@@ -562,10 +548,7 @@ class UploadJobService:
                 task.upload_id,
                 e,
             )
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail="Failed to finalize upload in storage",
-            )
+            raise MINIO_UPLOAD_FAILED
 
         # 2. 更新 Task 状态
         task.status = TaskStatus.COMPLETED
@@ -649,13 +632,7 @@ class UploadJobService:
                 task.upload_id,
                 e,
             )
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=(
-                    "Upload finalized in storage but database update failed. "
-                    "Please contact support."
-                ),
-            )
+            raise MINIO_UPLOAD_FAILED
 
         logger.info("Completed multipart upload for task %s", task_id)
 
@@ -734,10 +711,7 @@ class UploadJobService:
         )
 
         if not task:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Task not found",
-            )
+            raise UPLOAD_TASK_NOT_FOUND
 
         return task
 

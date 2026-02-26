@@ -4,7 +4,7 @@ import pytest
 from datetime import datetime, timedelta, UTC
 from unittest.mock import MagicMock, patch
 
-from fastapi import HTTPException
+from app.core.exceptions import AppException
 
 from app.services.password_reset_service import PasswordResetService
 
@@ -72,11 +72,11 @@ class TestInitiatePasswordReset:
 
         service = PasswordResetService(mock_db)
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(AppException) as exc_info:
             service.initiate_password_reset("inactive@example.com")
 
-        assert exc_info.value.status_code == 400
-        assert "deactivated" in exc_info.value.detail
+        assert exc_info.value.http_status == 400
+        assert "Inactive" in exc_info.value.message
 
     def test_initiate_password_reset_with_google_and_password(self):
         """Should generate token for user with both password and Google."""
@@ -127,11 +127,11 @@ class TestResetPassword:
 
         service = PasswordResetService(mock_db)
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(AppException) as exc_info:
             service.reset_password("invalid_token", "newpassword123")
 
-        assert exc_info.value.status_code == 400
-        assert "Invalid or expired" in exc_info.value.detail
+        assert exc_info.value.http_status == 400
+        assert "Invalid or expired" in exc_info.value.message
 
     def test_reset_password_expired_token(self):
         """Should raise error for expired token."""
@@ -142,11 +142,11 @@ class TestResetPassword:
 
         service = PasswordResetService(mock_db)
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(AppException) as exc_info:
             service.reset_password("expired_token", "newpassword123")
 
-        assert exc_info.value.status_code == 400
-        assert "expired" in exc_info.value.detail
+        assert exc_info.value.http_status == 400
+        assert "expired" in exc_info.value.message
 
     def test_reset_password_expired_at_none(self):
         """Should raise error when expires_at is None."""
@@ -157,10 +157,10 @@ class TestResetPassword:
 
         service = PasswordResetService(mock_db)
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(AppException) as exc_info:
             service.reset_password("token", "newpassword123")
 
-        assert exc_info.value.status_code == 400
+        assert exc_info.value.http_status == 400
 
     def test_reset_password_too_short(self):
         """Should raise error when password is too short."""
@@ -171,11 +171,11 @@ class TestResetPassword:
 
         service = PasswordResetService(mock_db)
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(AppException) as exc_info:
             service.reset_password("valid_token", "short")
 
-        assert exc_info.value.status_code == 400
-        assert "8 characters" in exc_info.value.detail
+        assert exc_info.value.http_status == 400
+        assert "8 characters" in exc_info.value.message
 
 
 class TestSendResetEmail:

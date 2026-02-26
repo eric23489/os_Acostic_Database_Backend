@@ -17,6 +17,14 @@ import pytest
 from fastapi import HTTPException
 
 from app.core.config import settings
+from app.core.exceptions import (
+    AUDIO_OBJECT_KEY_COLLISION,
+    DEPLOYMENT_PHASE_COLLISION,
+    POINT_NAME_COLLISION,
+    PROJECT_NAME_COLLISION,
+    PROJECT_NOT_FOUND,
+    RECORDER_IDENTIFIER_COLLISION,
+)
 
 
 # =============================================================================
@@ -79,14 +87,12 @@ class TestProjectSoftDelete:
             "app.api.v1.endpoints.api_projects.ProjectService"
         ) as MockService:
             mock_service = MockService.return_value
-            mock_service.delete_project.side_effect = HTTPException(
-                status_code=404, detail="Project not found"
-            )
+            mock_service.delete_project.side_effect = PROJECT_NOT_FOUND
 
             response = client.delete(f"{settings.api_prefix}/projects/999")
 
             assert response.status_code == 404
-            assert "not found" in response.json()["detail"].lower()
+            assert "not found" in response.json()["message"].lower()
 
     def test_restore_project_success(self, client, mock_db):
         """
@@ -151,15 +157,12 @@ class TestProjectSoftDelete:
             mock_db.query.return_value.filter.return_value.first.return_value = (
                 mock_project
             )
-            mock_service.restore_project.side_effect = HTTPException(
-                status_code=400,
-                detail="Active project with this name already exists. Cannot restore.",
-            )
+            mock_service.restore_project.side_effect = PROJECT_NAME_COLLISION
 
             response = client.post(f"{settings.api_prefix}/projects/1/restore")
 
             assert response.status_code == 400
-            assert "already exists" in response.json()["detail"].lower()
+            assert "already exists" in response.json()["message"].lower()
 
 
 # =============================================================================
@@ -267,15 +270,12 @@ class TestPointSoftDelete:
             mock_db.query.return_value.filter.return_value.first.return_value = (
                 mock_point
             )
-            mock_service.restore_point.side_effect = HTTPException(
-                status_code=400,
-                detail="Active point with this name already exists in the project. Cannot restore.",
-            )
+            mock_service.restore_point.side_effect = POINT_NAME_COLLISION
 
             response = client.post(f"{settings.api_prefix}/points/1/restore")
 
             assert response.status_code == 400
-            assert "already exists" in response.json()["detail"].lower()
+            assert "already exists" in response.json()["message"].lower()
 
 
 # =============================================================================
@@ -409,15 +409,12 @@ class TestDeploymentSoftDelete:
             mock_db.query.return_value.filter.return_value.first.return_value = (
                 mock_deployment
             )
-            mock_service.restore_deployment.side_effect = HTTPException(
-                status_code=400,
-                detail="Active deployment with this phase already exists for the point. Cannot restore.",
-            )
+            mock_service.restore_deployment.side_effect = DEPLOYMENT_PHASE_COLLISION
 
             response = client.post(f"{settings.api_prefix}/deployments/1/restore")
 
             assert response.status_code == 400
-            assert "already exists" in response.json()["detail"].lower()
+            assert "already exists" in response.json()["message"].lower()
 
 
 # =============================================================================
@@ -541,15 +538,12 @@ class TestAudioSoftDelete:
             mock_db.query.return_value.filter.return_value.first.return_value = (
                 mock_audio
             )
-            mock_service.restore_audio.side_effect = HTTPException(
-                status_code=400,
-                detail="Active audio with this object_key already exists. Cannot restore.",
-            )
+            mock_service.restore_audio.side_effect = AUDIO_OBJECT_KEY_COLLISION
 
             response = client.post(f"{settings.api_prefix}/audio/1/restore")
 
             assert response.status_code == 400
-            assert "already exists" in response.json()["detail"].lower()
+            assert "already exists" in response.json()["message"].lower()
 
 
 # =============================================================================
@@ -673,15 +667,12 @@ class TestRecorderSoftDelete:
             mock_db.query.return_value.filter.return_value.first.return_value = (
                 mock_recorder
             )
-            mock_service.restore_recorder.side_effect = HTTPException(
-                status_code=400,
-                detail="Active recorder with this brand/model/sn already exists. Cannot restore.",
-            )
+            mock_service.restore_recorder.side_effect = RECORDER_IDENTIFIER_COLLISION
 
             response = client.post(f"{settings.api_prefix}/recorders/1/restore")
 
             assert response.status_code == 400
-            assert "already exists" in response.json()["detail"].lower()
+            assert "already exists" in response.json()["message"].lower()
 
 
 # =============================================================================

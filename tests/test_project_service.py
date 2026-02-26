@@ -1,7 +1,9 @@
 from unittest.mock import MagicMock
+
 import pytest
 from fastapi import HTTPException
 
+from app.core.exceptions import AppException
 from app.services.project_service import ProjectService
 from app.schemas.project import ProjectCreate
 from app.models.project import ProjectInfo
@@ -57,11 +59,11 @@ def test_create_project_autogenerate_name_collision(mock_db):
     mock_db.query.return_value = mock_query
 
     # 3. 執行 Service 方法並驗證是否拋出例外
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(AppException) as exc_info:
         service.create_project(project_in)
 
-    assert exc_info.value.status_code == 400
-    assert "Project with this name already exists" in exc_info.value.detail
+    assert exc_info.value.http_status == 400
+    assert "Project with this name already exists" in exc_info.value.message
 
 
 def test_create_project_no_name_provided(mock_db):

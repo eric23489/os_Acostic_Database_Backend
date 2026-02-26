@@ -6,6 +6,8 @@ from unittest.mock import MagicMock, patch
 
 from fastapi import HTTPException
 
+from app.core.exceptions import AppException
+
 from app.services.oauth_service import OAuthService, create_jwt_for_user
 
 
@@ -48,11 +50,11 @@ class TestGetGoogleAuthorizationUrl:
         with patch("app.services.oauth_service.settings") as mock_settings:
             mock_settings.google_oauth_client_id = None
 
-            with pytest.raises(HTTPException) as exc_info:
+            with pytest.raises(AppException) as exc_info:
                 service.get_google_authorization_url()
 
-        assert exc_info.value.status_code == 500
-        assert "not configured" in exc_info.value.detail
+        assert exc_info.value.http_status == 500
+        assert "not configured" in exc_info.value.message
 
 
 class TestExchangeCodeForTokens:
@@ -96,10 +98,10 @@ class TestExchangeCodeForTokens:
                 mock_response.status_code = 400
                 mock_post.return_value = mock_response
 
-                with pytest.raises(HTTPException) as exc_info:
+                with pytest.raises(AppException) as exc_info:
                     service.exchange_code_for_tokens("invalid_code")
 
-        assert exc_info.value.status_code == 401
+        assert exc_info.value.http_status == 401
 
     def test_exchange_code_not_configured(self):
         """Should raise error when OAuth not configured."""
@@ -110,10 +112,10 @@ class TestExchangeCodeForTokens:
             mock_settings.google_oauth_client_id = None
             mock_settings.google_oauth_client_secret = None
 
-            with pytest.raises(HTTPException) as exc_info:
+            with pytest.raises(AppException) as exc_info:
                 service.exchange_code_for_tokens("auth_code")
 
-        assert exc_info.value.status_code == 500
+        assert exc_info.value.http_status == 500
 
 
 class TestAuthenticateWithGoogle:
@@ -265,11 +267,11 @@ class TestAuthenticateWithGoogle:
                     }
                     mock_get.return_value = mock_user_response
 
-                    with pytest.raises(HTTPException) as exc_info:
+                    with pytest.raises(AppException) as exc_info:
                         service.authenticate_with_google("auth_code")
 
-        assert exc_info.value.status_code == 400
-        assert "deactivated" in exc_info.value.detail
+        assert exc_info.value.http_status == 400
+        assert "Inactive" in exc_info.value.message
 
 
 class TestLinkGoogleAccount:
@@ -318,11 +320,11 @@ class TestLinkGoogleAccount:
         mock_user.oauth_provider = "google"
         service = OAuthService(mock_db)
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(AppException) as exc_info:
             service.link_google_account(mock_user, "auth_code")
 
-        assert exc_info.value.status_code == 400
-        assert "already linked" in exc_info.value.detail
+        assert exc_info.value.http_status == 400
+        assert "already linked" in exc_info.value.message
 
     def test_link_google_account_already_used(self):
         """Should raise error when Google account is used by another user."""
@@ -357,11 +359,11 @@ class TestLinkGoogleAccount:
                     }
                     mock_get.return_value = mock_user_response
 
-                    with pytest.raises(HTTPException) as exc_info:
+                    with pytest.raises(AppException) as exc_info:
                         service.link_google_account(mock_user, "auth_code")
 
-        assert exc_info.value.status_code == 400
-        assert "already linked to another user" in exc_info.value.detail
+        assert exc_info.value.http_status == 400
+        assert "already linked to another user" in exc_info.value.message
 
 
 class TestUnlinkGoogleAccount:
@@ -388,11 +390,11 @@ class TestUnlinkGoogleAccount:
         mock_user.oauth_provider = None
         service = OAuthService(mock_db)
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(AppException) as exc_info:
             service.unlink_google_account(mock_user)
 
-        assert exc_info.value.status_code == 400
-        assert "not linked" in exc_info.value.detail
+        assert exc_info.value.http_status == 400
+        assert "not linked" in exc_info.value.message
 
     def test_unlink_google_no_password(self):
         """Should raise error when user has no password."""

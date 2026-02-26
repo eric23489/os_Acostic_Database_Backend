@@ -15,7 +15,7 @@ from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
-from fastapi import HTTPException
+from app.core.exceptions import AppException
 
 from app.schemas.point import PointCreate, PointUpdate
 from app.services.point_service import PointService
@@ -48,11 +48,11 @@ class TestPointServiceGetPoint:
 
         service = PointService(mock_db)
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(AppException) as exc_info:
             service.get_point(999)
 
-        assert exc_info.value.status_code == 404
-        assert "not found" in exc_info.value.detail
+        assert exc_info.value.http_status == 404
+        assert "not found" in exc_info.value.message
 
 
 # =============================================================================
@@ -85,10 +85,10 @@ class TestPointServiceGetPointDetails:
 
         service = PointService(mock_db)
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(AppException) as exc_info:
             service.get_point_details(999)
 
-        assert exc_info.value.status_code == 404
+        assert exc_info.value.http_status == 404
 
 
 # =============================================================================
@@ -174,11 +174,11 @@ class TestPointServiceCreatePoint:
 
         service = PointService(mock_db)
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(AppException) as exc_info:
             service.create_point(point_data)
 
-        assert exc_info.value.status_code == 400
-        assert "already exists" in exc_info.value.detail
+        assert exc_info.value.http_status == 400
+        assert "already exists" in exc_info.value.message
 
 
 # =============================================================================
@@ -232,10 +232,10 @@ class TestPointServiceUpdatePoint:
 
         service = PointService(mock_db)
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(AppException) as exc_info:
             service.update_point(1, update_data)
 
-        assert exc_info.value.status_code == 400
+        assert exc_info.value.http_status == 400
 
 
 # =============================================================================
@@ -323,10 +323,10 @@ class TestPointServiceRestorePoint:
 
         service = PointService(mock_db)
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(AppException) as exc_info:
             service.restore_point(999)
 
-        assert exc_info.value.status_code == 404
+        assert exc_info.value.http_status == 404
 
     def test_restore_point_name_collision_raises_400(self):
         """名稱衝突觸發 400 錯誤。"""
@@ -347,8 +347,8 @@ class TestPointServiceRestorePoint:
 
         service = PointService(mock_db)
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(AppException) as exc_info:
             service.restore_point(1)
 
-        assert exc_info.value.status_code == 400
-        assert "Cannot restore" in exc_info.value.detail
+        assert exc_info.value.http_status == 400
+        assert "Cannot restore" in exc_info.value.message

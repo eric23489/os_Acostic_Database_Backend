@@ -562,4 +562,4 @@ class TestAudioUploadIntegration:
             headers=auth_headers,
         )
         assert response.status_code == 400
-        assert "not completed" in response.json()["detail"]
+        assert "not completed" in response.json()["message"]

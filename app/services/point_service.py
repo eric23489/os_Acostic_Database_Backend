@@ -1,9 +1,15 @@
 import logging
 from datetime import UTC, datetime, timedelta
 
-from fastapi import HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 
+from app.core.exceptions import (
+    POINT_NAME_COLLISION,
+    POINT_NAME_DUPLICATE,
+    POINT_NAME_RESERVED,
+    POINT_NOT_FOUND,
+    PROJECT_NOT_FOUND,
+)
 from app.core.minio import get_s3_client
 from app.models.audio import AudioInfo
 from app.models.deployment import DeploymentInfo
@@ -27,10 +33,7 @@ class PointService:
             .first()
         )
         if not point:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Point not found",
-            )
+            raise POINT_NOT_FOUND
         return point
 
     def get_point_details(self, point_id: int) -> PointInfo:
@@ -45,9 +48,7 @@ class PointService:
             .first()
         )
         if not point:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Point not found"
-            )
+            raise POINT_NOT_FOUND
         return point
 
     def get_points(
@@ -100,10 +101,7 @@ class PointService:
             )
             .first()
         ):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Point name already exists in this project",
-            )
+            raise POINT_NAME_DUPLICATE
 
         # Check if name is reserved by a soft-deleted point
         if (
@@ -115,10 +113,7 @@ class PointService:
             )
             .first()
         ):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Name reserved by deleted point. Hard delete to release.",
-            )
+            raise POINT_NAME_RESERVED
 
         point_data = point_in.model_dump()
 
@@ -147,10 +142,7 @@ class PointService:
                 )
                 .first()
             ):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Point name already exists in this project",
-                )
+                raise POINT_NAME_DUPLICATE
 
         for field, value in update_data.items():
             setattr(point, field, value)
@@ -210,10 +202,7 @@ class PointService:
     def restore_point(self, point_id: int) -> PointInfo:
         point = self.db.query(PointInfo).filter(PointInfo.id == point_id).first()
         if not point:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Point not found",
-            )
+            raise POINT_NOT_FOUND
 
         # Check for name collision before restore
         if (
@@ -226,10 +215,7 @@ class PointService:
             )
             .first()
         ):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Active point with this name already exists in the project. Cannot restore.",
-            )
+            raise POINT_NAME_COLLISION
 
         # Cascade Restore Logic
         # Only restore child records deleted at the same time as parent
@@ -282,10 +268,7 @@ class PointService:
         # 查詢 Point (包含已軟刪除)
         point = self.db.query(PointInfo).filter(PointInfo.id == point_id).first()
         if not point:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Point not found",
-            )
+            raise POINT_NOT_FOUND
 
         # 取得 Project 名稱 (用於 MinIO bucket)
         project = (
@@ -294,10 +277,7 @@ class PointService:
             .first()
         )
         if not project:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Parent project not found",
-            )
+            raise PROJECT_NOT_FOUND
         bucket_name = project.name
 
         # 取得相關 Audio

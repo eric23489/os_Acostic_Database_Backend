@@ -1,12 +1,17 @@
 from datetime import datetime
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends
 from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_user
+from app.core.exceptions import (
+    PERMISSION_ADMIN_REQUIRED,
+    PERMISSION_RESTORE_DENIED,
+    PROJECT_NOT_FOUND,
+)
 from app.db.session import SessionLocal, get_db
+from app.enums.enums import UserRole
 from app.models.project import ProjectInfo
-from app.models.user import UserRole
 from app.schemas.pagination import PaginatedResponse, SortOrder
 from app.schemas.project import ProjectCreate, ProjectResponse, ProjectUpdate
 from app.services.project_service import ProjectService
@@ -107,18 +112,12 @@ def restore_project(
 ):
     project = db.query(ProjectInfo).filter(ProjectInfo.id == project_id).first()
     if not project:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Project not found",
-        )
+        raise PROJECT_NOT_FOUND
     if (
         current_user.role != UserRole.ADMIN.value
         and current_user.id != project.deleted_by
     ):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only the deleter or admin can restore this resource",
-        )
+        raise PERMISSION_RESTORE_DENIED
     return ProjectService(db).restore_project(project_id)
 
 
@@ -138,8 +137,5 @@ def hard_delete_project(
     需要 Admin 權限。
     """
     if current_user.role != UserRole.ADMIN.value:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin permission required for permanent deletion",
-        )
+        raise PERMISSION_ADMIN_REQUIRED
     return ProjectService(db).hard_delete_project(project_id)

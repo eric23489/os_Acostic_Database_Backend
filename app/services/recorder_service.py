@@ -4,6 +4,11 @@ from fastapi import HTTPException, status
 from sqlalchemy import exists
 from sqlalchemy.orm import Session
 
+from app.core.exceptions import (
+    RECORDER_IDENTIFIER_COLLISION,
+    RECORDER_IDENTIFIER_RESERVED,
+    RECORDER_NOT_FOUND,
+)
 from app.models.deployment import DeploymentInfo
 from app.models.recorder import RecorderInfo
 from app.schemas.pagination import SortOrder
@@ -32,10 +37,7 @@ class RecorderService:
             .first()
         )
         if not recorder:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Recorder with ID {recorder_id} not found.",
-            )
+            raise RECORDER_NOT_FOUND
         return recorder
 
     def get_recorders(
@@ -92,19 +94,13 @@ class RecorderService:
 
     def create_recorder(self, recorder: RecorderCreate) -> RecorderInfo:
         if self.check_recorder_exists(recorder.brand, recorder.model, recorder.sn):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Recorder with brand '{recorder.brand}', model '{recorder.model}', and SN '{recorder.sn}' already exists.",
-            )
+            raise RECORDER_IDENTIFIER_COLLISION
 
         # 檢查軟刪除名稱保留
         if self.check_soft_deleted_recorder_exists(
             recorder.brand, recorder.model, recorder.sn
         ):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Identifier reserved by deleted recorder. Hard delete to release.",
-            )
+            raise RECORDER_IDENTIFIER_RESERVED
 
         db_recorder = RecorderInfo(
             brand=recorder.brand,
@@ -143,10 +139,7 @@ class RecorderService:
             or new_sn != db_recorder.sn
         ):
             if self.check_recorder_exists(new_brand, new_model, new_sn):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Recorder with brand '{new_brand}', model '{new_model}', and SN '{new_sn}' already exists.",
-                )
+                raise RECORDER_IDENTIFIER_COLLISION
 
         for field, value in update_data.items():
             setattr(db_recorder, field, value)
@@ -172,10 +165,7 @@ class RecorderService:
             self.db.query(RecorderInfo).filter(RecorderInfo.id == recorder_id).first()
         )
         if not recorder:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Recorder with ID {recorder_id} not found.",
-            )
+            raise RECORDER_NOT_FOUND
 
         # Check for unique constraint collision before restore
         if (
@@ -189,10 +179,7 @@ class RecorderService:
             )
             .first()
         ):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Active recorder with this brand/model/sn already exists. Cannot restore.",
-            )
+            raise RECORDER_IDENTIFIER_COLLISION
 
         recorder.is_deleted = False
         recorder.deleted_at = None
@@ -216,10 +203,7 @@ class RecorderService:
             self.db.query(RecorderInfo).filter(RecorderInfo.id == recorder_id).first()
         )
         if not recorder:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Recorder not found",
-            )
+            raise RECORDER_NOT_FOUND
 
         # 檢查是否有 Deployment 引用此 Recorder
         deployment_count = (

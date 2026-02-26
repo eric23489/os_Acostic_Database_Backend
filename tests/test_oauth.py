@@ -48,7 +48,7 @@ class TestGoogleOAuthAuthorize:
             response = client.get(f"{settings.api_prefix}/oauth/google/authorize")
 
             assert response.status_code == 500
-            assert "not configured" in response.json()["detail"]
+            assert "not configured" in response.json()["message"]
 
 
 class TestGoogleOAuthCallback:

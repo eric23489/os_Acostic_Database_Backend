@@ -11,6 +11,7 @@ from fastapi import HTTPException
 from pydantic import ValidationError
 
 from app.core.config import settings
+from app.core.exceptions import AppException, DEPLOYMENT_NOT_FOUND
 from app.schemas.audio import (
     AudioBatchCreateRequest,
     AudioBatchCreateResponse,
@@ -218,9 +219,7 @@ class TestCreateAudiosBatchEndpoint:
 
     def test_deployment_not_found_returns_404(self, client):
         with patch("app.api.v1.endpoints.api_audio.AudioService") as MockService:
-            MockService.return_value.create_audios_batch.side_effect = HTTPException(
-                status_code=404, detail="Deployment not found"
-            )
+            MockService.return_value.create_audios_batch.side_effect = DEPLOYMENT_NOT_FOUND
             res = client.post(
                 self.BASE_URL,
                 json={"deployment_id": 999, "audios": [
@@ -228,7 +227,7 @@ class TestCreateAudiosBatchEndpoint:
                 ]},
             )
         assert res.status_code == 404
-        assert res.json()["detail"] == "Deployment not found"
+        assert res.json()["message"] == "Deployment not found"
 
     def test_empty_audios_returns_422(self, client):
         res = client.post(
@@ -310,11 +309,11 @@ class TestGetTaskIDOR:
         db = self._make_db(result=None)
         service = UploadJobService(db)
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(AppException) as exc_info:
             service._get_task("job-1", "task-1", user_id=99)
 
-        assert exc_info.value.status_code == 404
-        assert exc_info.value.detail == "Task not found"
+        assert exc_info.value.http_status == 404
+        assert exc_info.value.message == "Task not found"
 
     def test_correct_user_returns_task(self):
         """擁有者查詢自己的 task → 成功回傳。"""

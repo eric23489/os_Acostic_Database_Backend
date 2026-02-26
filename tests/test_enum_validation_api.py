@@ -46,10 +46,10 @@ class TestDeploymentApiEnumValidation:
         assert response.status_code == 422
         error_detail = response.json()["detail"]
         # 確認錯誤指向 status 欄位
-        status_errors = [e for e in error_detail if "status" in str(e.get("loc", []))]
+        status_errors = [e for e in error_detail if "status" in e.get("field", "")]
         assert len(status_errors) > 0
         # 確認錯誤訊息包含允許值
-        assert "Input should be" in status_errors[0]["msg"]
+        assert "Input should be" in status_errors[0]["message"]
 
     def test_create_deployment_422_lists_valid_options(self, client):
         """422 錯誤訊息列出所有允許值。"""
@@ -213,7 +213,7 @@ class TestRecorderApiEnumValidation:
         )
         assert response.status_code == 422
         error_detail = response.json()["detail"]
-        status_errors = [e for e in error_detail if "status" in str(e.get("loc", []))]
+        status_errors = [e for e in error_detail if "status" in e.get("field", "")]
         assert len(status_errors) > 0
 
     def test_create_recorder_422_lists_valid_options(self, client):
@@ -331,7 +331,7 @@ class TestUserApiEnumValidation:
         )
         assert response.status_code == 422
         error_detail = response.json()["detail"]
-        role_errors = [e for e in error_detail if "role" in str(e.get("loc", []))]
+        role_errors = [e for e in error_detail if "role" in e.get("field", "")]
         assert len(role_errors) > 0
 
     def test_create_user_422_lists_valid_options(self, client):
@@ -388,10 +388,10 @@ class TestUserApiEnumValidation:
 
 
 class TestEnumValidation422Structure:
-    """測試 422 錯誤回應結構。"""
+    """測試 422 錯誤回應結構（統一格式）。"""
 
-    def test_422_response_has_detail_field(self, client):
-        """422 錯誤包含 detail 欄位。"""
+    def test_422_response_has_error_code(self, client):
+        """422 錯誤包含 error_code 欄位，值為 VALIDATION_ERROR。"""
         response = client.post(
             f"{settings.api_prefix}/deployments/",
             json={
@@ -401,7 +401,8 @@ class TestEnumValidation422Structure:
             },
         )
         assert response.status_code == 422
-        assert "detail" in response.json()
+        body = response.json()
+        assert body["error_code"] == "VALIDATION_ERROR"
 
     def test_422_detail_is_list(self, client):
         """422 detail 是錯誤列表。"""
@@ -414,10 +415,12 @@ class TestEnumValidation422Structure:
             },
         )
         assert response.status_code == 422
-        assert isinstance(response.json()["detail"], list)
+        body = response.json()
+        assert body["error_code"] == "VALIDATION_ERROR"
+        assert isinstance(body["detail"], list)
 
     def test_422_error_item_has_required_fields(self, client):
-        """422 錯誤項目包含必要欄位 (type, loc, msg)。"""
+        """422 錯誤項目包含必要欄位 (field, message)。"""
         response = client.post(
             f"{settings.api_prefix}/deployments/",
             json={
@@ -428,12 +431,11 @@ class TestEnumValidation422Structure:
         )
         assert response.status_code == 422
         error_item = response.json()["detail"][0]
-        assert "type" in error_item
-        assert "loc" in error_item
-        assert "msg" in error_item
+        assert "field" in error_item
+        assert "message" in error_item
 
-    def test_422_error_type_is_enum(self, client):
-        """422 錯誤類型為 enum。"""
+    def test_422_error_message_contains_valid_options(self, client):
+        """422 錯誤訊息包含允許值提示。"""
         response = client.post(
             f"{settings.api_prefix}/deployments/",
             json={
@@ -444,10 +446,10 @@ class TestEnumValidation422Structure:
         )
         assert response.status_code == 422
         error_item = response.json()["detail"][0]
-        assert error_item["type"] == "enum"
+        assert "Input should be" in error_item["message"]
 
-    def test_422_loc_contains_field_path(self, client):
-        """422 loc 包含欄位路徑。"""
+    def test_422_field_contains_field_path(self, client):
+        """422 field 包含欄位路徑。"""
         response = client.post(
             f"{settings.api_prefix}/deployments/",
             json={
@@ -458,7 +460,7 @@ class TestEnumValidation422Structure:
         )
         assert response.status_code == 422
         error_item = response.json()["detail"][0]
-        assert "status" in error_item["loc"]
+        assert "status" in error_item["field"]
 
 
 # =============================================================================
@@ -492,7 +494,7 @@ class TestProjectApiEnumValidation:
         assert response.status_code == 422
         error_detail = response.json()["detail"]
         project_type_errors = [
-            e for e in error_detail if "project_type" in str(e.get("loc", []))
+            e for e in error_detail if "project_type" in e.get("field", "")
         ]
         assert len(project_type_errors) > 0
 
