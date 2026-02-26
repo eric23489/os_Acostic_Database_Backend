@@ -4,6 +4,7 @@
 用于批量音档上传的请求和响应模型。
 """
 
+import re
 from datetime import datetime
 
 from pydantic import BaseModel, field_validator
@@ -15,6 +16,17 @@ class FileInfo(BaseModel):
     name: str  # 档名格式: 7505.240611130000.wav
     size: int | None = None
     checksum: str | None = None
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, v: str) -> str:
+        """驗證檔名格式: {recorder_id}.{12位時間戳}[.{副檔名}]"""
+        if not re.match(r"^\d+\.\d{12}(\.\w+)?$", v):
+            raise ValueError(
+                "Invalid filename format. Expected: {recorder_id}.{YYMMDDHHmmss}[.ext] "
+                "(e.g., 7505.240611130000.wav)"
+            )
+        return v
 
 
 class SkippedFileInfo(BaseModel):

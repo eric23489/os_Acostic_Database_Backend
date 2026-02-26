@@ -428,9 +428,8 @@ class TestAudioServiceHardDelete:
         - S3 client 的 delete_object 被呼叫一次
         - 正確的 Bucket 和 Key
         """
-        with patch("app.services.audio_service.get_s3_client") as mock_get_s3:
-            mock_s3 = MagicMock()
-            mock_get_s3.return_value = mock_s3
+        with patch("app.services.audio_service.MinioService") as MockMinioService:
+            mock_minio = MockMinioService.return_value
 
             mock_db = MagicMock()
 
@@ -469,8 +468,8 @@ class TestAudioServiceHardDelete:
             result = service.hard_delete_audio(1)
 
             # 驗證 MinIO 操作
-            mock_s3.delete_object.assert_called_once_with(
-                Bucket="test-project", Key="point1/2024/01/audio1.wav"
+            mock_minio.delete_object.assert_called_once_with(
+                "test-project", "point1/2024/01/audio1.wav"
             )
 
 

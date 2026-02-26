@@ -484,7 +484,7 @@ class TestAudioSoftDelete:
 
             assert response.status_code == 404
 
-    def test_restore_audio_success(self, client, mock_db):
+    def test_restore_audio_success(self, client, mock_db, mock_current_user):
         """
         測試成功還原音檔紀錄。
 
@@ -525,7 +525,7 @@ class TestAudioSoftDelete:
             response = client.post(f"{settings.api_prefix}/audio/1/restore")
 
             assert response.status_code == 200
-            mock_service.restore_audio.assert_called_once_with(1)
+            mock_service.restore_audio.assert_called_once_with(1, mock_current_user)
 
     def test_restore_audio_object_key_collision(self, client, mock_db):
         """

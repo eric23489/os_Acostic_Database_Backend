@@ -15,10 +15,11 @@ from unittest.mock import MagicMock, patch, call
 import pytest
 from fastapi import HTTPException
 
-from app.services.project_service import ProjectService
-from app.services.point_service import PointService
-from app.services.deployment_service import DeploymentService
+from app.enums.enums import UserRole
 from app.services.audio_service import AudioService
+from app.services.deployment_service import DeploymentService
+from app.services.point_service import PointService
+from app.services.project_service import ProjectService
 from app.services.recorder_service import RecorderService
 
 
@@ -449,7 +450,11 @@ class TestAudioServiceRestore:
         mock_query.first.side_effect = mock_filter_first
         mock_db.query.return_value = mock_query
 
-        result = service.restore_audio(1)
+        mock_current_user = MagicMock()
+        mock_current_user.id = 1
+        mock_current_user.role = UserRole.ADMIN.value
+
+        result = service.restore_audio(1, mock_current_user)
 
         assert mock_audio.is_deleted is False
         assert mock_audio.deleted_at is None
@@ -478,8 +483,12 @@ class TestAudioServiceRestore:
             mock_existing
         )
 
+        mock_current_user = MagicMock()
+        mock_current_user.id = 1
+        mock_current_user.role = UserRole.ADMIN.value
+
         with pytest.raises(HTTPException) as exc_info:
-            service.restore_audio(1)
+            service.restore_audio(1, mock_current_user)
 
         assert exc_info.value.status_code == 400
 
