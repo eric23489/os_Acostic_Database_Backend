@@ -316,6 +316,8 @@ class TestDeploymentSoftDelete:
             mock_deployment.gain = None
             mock_deployment.status = "un-deployed"
             mock_deployment.description = None
+            mock_deployment.deploy_personnel = None
+            mock_deployment.retrieve_personnel = None
             mock_deployment.created_at = datetime.now(timezone.utc)
             mock_deployment.updated_at = datetime.now(timezone.utc)
             mock_deployment.is_deleted = True
@@ -377,6 +379,8 @@ class TestDeploymentSoftDelete:
             mock_deployment.gain = None
             mock_deployment.status = "un-deployed"
             mock_deployment.description = None
+            mock_deployment.deploy_personnel = None
+            mock_deployment.retrieve_personnel = None
             mock_deployment.created_at = datetime.now(timezone.utc)
             mock_deployment.updated_at = datetime.now(timezone.utc)
             mock_deployment.is_deleted = False
@@ -782,6 +786,8 @@ class TestSoftDeleteFiltering:
             mock_deployment.gain = None
             mock_deployment.status = "un-deployed"
             mock_deployment.description = None
+            mock_deployment.deploy_personnel = None
+            mock_deployment.retrieve_personnel = None
             mock_deployment.created_at = datetime.now(timezone.utc)
             mock_deployment.updated_at = datetime.now(timezone.utc)
             mock_service.get_deployments.return_value = ([mock_deployment], 1)

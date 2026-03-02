@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Depends, Query, Response, status
 from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_admin_user, get_current_user
@@ -22,8 +22,8 @@ router = APIRouter(prefix="/audio", tags=["audio"])
 
 @router.get("/", response_model=PaginatedResponse[AudioResponse])
 def get_audios(
-    skip: int = 0,
-    limit: int = 100,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
     deployment_id: int | None = None,
     search: str | None = None,
     sort_by: str | None = None,

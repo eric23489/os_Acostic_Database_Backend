@@ -34,7 +34,7 @@ class TestPointServiceGetPoint:
         mock_point = MagicMock()
         mock_point.id = 1
         mock_point.name = "Test Point"
-        mock_db.query.return_value.filter.return_value.first.return_value = mock_point
+        mock_db.query.return_value.options.return_value.filter.return_value.first.return_value = mock_point
 
         service = PointService(mock_db)
         result = service.get_point(1)
@@ -44,7 +44,7 @@ class TestPointServiceGetPoint:
     def test_get_point_not_found_raises_404(self):
         """Point 不存在觸發 404 錯誤。"""
         mock_db = MagicMock()
-        mock_db.query.return_value.filter.return_value.first.return_value = None
+        mock_db.query.return_value.options.return_value.filter.return_value.first.return_value = None
 
         service = PointService(mock_db)
 
@@ -197,11 +197,9 @@ class TestPointServiceUpdatePoint:
         mock_point.name = "Old Name"
         mock_point.project_id = 1
 
-        # 第一次查詢找到 point，第二次查詢確認無重複
-        mock_db.query.return_value.filter.return_value.first.side_effect = [
-            mock_point,
-            None,
-        ]
+        # get_point 走 options chain，duplicate check 走直接 filter chain
+        mock_db.query.return_value.options.return_value.filter.return_value.first.return_value = mock_point
+        mock_db.query.return_value.filter.return_value.first.return_value = None
 
         update_data = PointUpdate(name="New Name")
 
@@ -222,11 +220,9 @@ class TestPointServiceUpdatePoint:
         other_point = MagicMock()
         other_point.id = 2
 
-        # 第一次查詢找到 point，第二次查詢發現重複
-        mock_db.query.return_value.filter.return_value.first.side_effect = [
-            mock_point,
-            other_point,
-        ]
+        # get_point 走 options chain，duplicate check 走直接 filter chain
+        mock_db.query.return_value.options.return_value.filter.return_value.first.return_value = mock_point
+        mock_db.query.return_value.filter.return_value.first.return_value = other_point
 
         update_data = PointUpdate(name="Duplicate Name")
 
@@ -252,7 +248,7 @@ class TestPointServiceDeletePoint:
         mock_point = MagicMock()
         mock_point.id = 1
         mock_point.is_deleted = False
-        mock_db.query.return_value.filter.return_value.first.return_value = mock_point
+        mock_db.query.return_value.options.return_value.filter.return_value.first.return_value = mock_point
         mock_db.query.return_value.filter.return_value.all.return_value = []
 
         service = PointService(mock_db)
@@ -273,7 +269,7 @@ class TestPointServiceDeletePoint:
         mock_deployment.id = 10
 
         # 設置查詢返回
-        mock_db.query.return_value.filter.return_value.first.return_value = mock_point
+        mock_db.query.return_value.options.return_value.filter.return_value.first.return_value = mock_point
         mock_db.query.return_value.filter.return_value.all.return_value = [
             mock_deployment
         ]

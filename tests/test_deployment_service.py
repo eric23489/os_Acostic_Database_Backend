@@ -150,6 +150,8 @@ class TestDeploymentServiceCreateDeployment:
             point_id=1,
             recorder_id=1,
             status=DeploymentStatus.UNDEPLOYED,
+            deploy_personnel="王小明",
+            retrieve_personnel="李大華",
         )
 
         service = DeploymentService(mock_db)
@@ -223,7 +225,9 @@ class TestDeploymentServiceUpdateDeployment:
             mock_deployment
         )
 
-        update_data = DeploymentUpdate(status=DeploymentStatus.SUCCESS)
+        update_data = DeploymentUpdate(
+            status=DeploymentStatus.SUCCESS, deploy_personnel="王小明"
+        )
 
         service = DeploymentService(mock_db)
         service.update_deployment(1, update_data)

@@ -237,8 +237,8 @@ class TestPointServiceDelete:
         mock_point.name = "test-point"
         mock_point.is_deleted = False
 
-        # 模擬查詢回傳測站
-        mock_db.query.return_value.filter.return_value.first.return_value = mock_point
+        # 模擬查詢回傳測站 (get_point 走 options chain)
+        mock_db.query.return_value.options.return_value.filter.return_value.first.return_value = mock_point
         # 模擬找到的 deployments
         mock_db.query.return_value.filter.return_value.all.return_value = []
 
@@ -266,7 +266,7 @@ class TestPointServiceDelete:
         mock_deployment = MagicMock()
         mock_deployment.id = 10
 
-        mock_db.query.return_value.filter.return_value.first.return_value = mock_point
+        mock_db.query.return_value.options.return_value.filter.return_value.first.return_value = mock_point
         mock_db.query.return_value.filter.return_value.all.return_value = [
             mock_deployment
         ]

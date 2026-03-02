@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
-from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator, model_validator
 
 from app.enums.enums import DeploymentStatus
 from app.schemas.point import PointWithProjectResponse
@@ -10,19 +10,21 @@ from app.schemas.recorder import RecorderResponse
 class DeploymentBase(BaseModel):
     point_id: int
     recorder_id: int
-    phase: int | None = 1
+    phase: int | None = Field(default=1, ge=1)
     report_start_time: datetime | None = None
     report_end_time: datetime | None = None
     deploy_time: datetime | None = None
     return_time: datetime | None = None
     gps_lat_exe: float | None = Field(None, ge=-90, le=90)
     gps_lon_exe: float | None = Field(None, ge=-180, le=180)
-    depth_exe: float | None = None
-    fs: int | None = None
-    sensitivity: float | None = None
-    gain: float | None = None
+    depth_exe: float | None = Field(None, ge=0, le=11000)
+    fs: int | None = Field(None, ge=1000, le=384000)
+    sensitivity: float | None = Field(None, ge=-300, le=0)
+    gain: float | None = Field(None, ge=-60, le=60)
     status: DeploymentStatus | None = DeploymentStatus.UNDEPLOYED
-    description: str | None = None
+    description: str | None = Field(None, max_length=2000)
+    deploy_personnel: str | None = Field(None, max_length=200)
+    retrieve_personnel: str | None = Field(None, max_length=200)
 
     @field_validator(
         "report_start_time", "report_end_time", "deploy_time", "return_time"
@@ -35,6 +37,12 @@ class DeploymentBase(BaseModel):
             return v.replace(tzinfo=tw_tz)
         return v
 
+    @model_validator(mode="after")
+    def validate_time_range(self) -> "DeploymentBase":
+        if self.deploy_time and self.return_time and self.deploy_time > self.return_time:
+            raise ValueError("deploy_time must be before or equal to return_time")
+        return self
+
 
 class DeploymentCreate(DeploymentBase):
     pass
@@ -43,19 +51,21 @@ class DeploymentCreate(DeploymentBase):
 class DeploymentUpdate(BaseModel):
     point_id: int | None = None
     recorder_id: int | None = None
-    phase: int | None = None
+    phase: int | None = Field(None, ge=1)
     report_start_time: datetime | None = None
     report_end_time: datetime | None = None
     deploy_time: datetime | None = None
     return_time: datetime | None = None
     gps_lat_exe: float | None = Field(None, ge=-90, le=90)
     gps_lon_exe: float | None = Field(None, ge=-180, le=180)
-    depth_exe: float | None = None
-    fs: int | None = None
-    sensitivity: float | None = None
-    gain: float | None = None
+    depth_exe: float | None = Field(None, ge=0, le=11000)
+    fs: int | None = Field(None, ge=1000, le=384000)
+    sensitivity: float | None = Field(None, ge=-300, le=0)
+    gain: float | None = Field(None, ge=-60, le=60)
     status: DeploymentStatus | None = None
-    description: str | None = None
+    description: str | None = Field(None, max_length=2000)
+    deploy_personnel: str | None = Field(None, max_length=200)
+    retrieve_personnel: str | None = Field(None, max_length=200)
 
 
 class DeploymentResponse(DeploymentBase):

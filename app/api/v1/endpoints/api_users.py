@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
@@ -49,8 +49,8 @@ def read_users_me(current_user=Depends(get_current_user)):
 
 @router.get("/", response_model=PaginatedResponse[UserResponse])
 def read_users(
-    skip: int = 0,
-    limit: int = 100,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
     search: str | None = None,
     role: str | None = None,
     is_active: bool | None = None,

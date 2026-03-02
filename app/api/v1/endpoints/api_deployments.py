@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_user
@@ -19,8 +19,8 @@ router = APIRouter(prefix="/deployments", tags=["deployments"])
 
 @router.get("/", response_model=PaginatedResponse[DeploymentResponse])
 def get_deployments(
-    skip: int = 0,
-    limit: int = 100,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
     point_id: int | None = None,
     deployment_status: str | None = None,
     sort_by: str | None = None,

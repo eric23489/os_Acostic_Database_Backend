@@ -99,6 +99,8 @@ class TestDeploymentApiEnumValidation:
             mock_deployment.gain = None
             mock_deployment.status = "success"
             mock_deployment.description = None
+            mock_deployment.deploy_personnel = None
+            mock_deployment.retrieve_personnel = None
             mock_deployment.created_at = datetime.now(UTC)
             mock_deployment.updated_at = datetime.now(UTC)
             mock_service.update_deployment.return_value = mock_deployment
@@ -133,6 +135,8 @@ class TestDeploymentApiEnumValidation:
             mock_deployment.gain = None
             mock_deployment.status = "un-deployed"
             mock_deployment.description = "Updated description"
+            mock_deployment.deploy_personnel = None
+            mock_deployment.retrieve_personnel = None
             mock_deployment.created_at = datetime.now(UTC)
             mock_deployment.updated_at = datetime.now(UTC)
             mock_service.update_deployment.return_value = mock_deployment
@@ -166,6 +170,8 @@ class TestDeploymentApiEnumValidation:
             mock_deployment.gain = None
             mock_deployment.status = "under-monitoring"
             mock_deployment.description = None
+            mock_deployment.deploy_personnel = None
+            mock_deployment.retrieve_personnel = None
             mock_deployment.created_at = datetime.now(UTC)
             mock_deployment.updated_at = datetime.now(UTC)
             mock_service.get_deployment.return_value = mock_deployment

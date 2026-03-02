@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from fastapi import APIRouter, BackgroundTasks, Depends
+from fastapi import APIRouter, BackgroundTasks, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_user
@@ -21,8 +21,8 @@ router = APIRouter(prefix="/projects", tags=["projects"])
 
 @router.get("/", response_model=PaginatedResponse[ProjectResponse])
 def get_projects(
-    skip: int = 0,
-    limit: int = 100,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
     search: str | None = None,
     is_finished: bool | None = None,
     sort_by: str | None = None,

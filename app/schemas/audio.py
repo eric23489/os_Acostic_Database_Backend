@@ -4,6 +4,7 @@ from typing import Any, Literal
 from pydantic import (
     BaseModel,
     ConfigDict,
+    Field,
     field_serializer,
     field_validator,
     model_validator,
@@ -14,16 +15,16 @@ from app.schemas.deployment import DeploymentWithDetailsResponse
 
 class AudioBase(BaseModel):
     deployment_id: int
-    file_name: str
+    file_name: str = Field(..., min_length=1, max_length=255)
     object_key: str
     file_format: str | None = "wav"
-    file_size: int | None = None
+    file_size: int | None = Field(None, gt=0, le=10_737_418_240)
     checksum: str | None = None
     record_time: datetime | None = None
-    record_duration: float | None = None
-    fs: int | None = None
-    recorder_channel: int | None = 0
-    audio_channels: int | None = 1
+    record_duration: float | None = Field(None, gt=0)
+    fs: int | None = Field(None, ge=1000, le=384000)
+    recorder_channel: int | None = Field(default=0, ge=0, le=16)
+    audio_channels: int | None = Field(default=1, ge=1, le=16)
     target: str | None = None
     target_type: int | None = None
     meta_json: dict[str, Any] | None = None
@@ -121,16 +122,16 @@ class AudioDownloadUrlResponse(BaseModel):
 class AudioBatchItem(BaseModel):
     """單一 Audio 批量建立項目，deployment_id 由外層提供。"""
 
-    file_name: str
+    file_name: str = Field(..., min_length=1, max_length=255)
     object_key: str
     file_format: str | None = "wav"
-    file_size: int | None = None
+    file_size: int | None = Field(None, gt=0, le=10_737_418_240)
     checksum: str | None = None
     record_time: datetime | None = None
-    record_duration: float | None = None
-    fs: int | None = None
-    recorder_channel: int | None = 0
-    audio_channels: int | None = 1
+    record_duration: float | None = Field(None, gt=0)
+    fs: int | None = Field(None, ge=1000, le=384000)
+    recorder_channel: int | None = Field(default=0, ge=0, le=16)
+    audio_channels: int | None = Field(default=1, ge=1, le=16)
     target: str | None = None
     target_type: int | None = None
     meta_json: dict[str, Any] | None = None

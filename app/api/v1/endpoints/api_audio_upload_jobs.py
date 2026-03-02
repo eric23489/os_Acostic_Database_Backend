@@ -1,6 +1,6 @@
 """Audio Upload Jobs API endpoints."""
 
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Depends, Query, Response, status
 from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_user
@@ -62,8 +62,8 @@ def get_upload_job_status(
 
 @router.get("/", response_model=list[UploadJobStatusResponse])
 def list_upload_jobs(
-    skip: int = 0,
-    limit: int = 20,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=1000),
     db: Session = Depends(get_db),
     current_user: UserInfo = Depends(get_current_user),
 ) -> list[UploadJobStatusResponse]:

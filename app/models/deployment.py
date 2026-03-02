@@ -46,6 +46,8 @@ class DeploymentInfo(Base):
     gain = Column(Float)
     status = Column(String(50))
     description = Column(Text)
+    deploy_personnel = Column(String, nullable=True)
+    retrieve_personnel = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_user
@@ -28,8 +28,8 @@ def get_recorder(
 
 @router.get("/", response_model=PaginatedResponse[RecorderResponse])
 def get_recorders(
-    skip: int = 0,
-    limit: int = 100,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
     search: str | None = None,
     recorder_status: str | None = None,
     sort_by: str | None = None,

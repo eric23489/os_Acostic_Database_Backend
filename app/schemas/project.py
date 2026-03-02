@@ -1,24 +1,24 @@
 import re
 from typing import Optional
 from datetime import datetime, timezone, timedelta
-from pydantic import BaseModel, ConfigDict, field_validator, field_serializer
+from pydantic import BaseModel, ConfigDict, Field, field_validator, field_serializer, model_validator
 
 from app.enums.enums import ProjectType
 
 
 class ProjectBase(BaseModel):
     name: Optional[str] = None
-    name_zh: Optional[str] = None
-    area: Optional[str] = None
-    description: Optional[str] = None
+    name_zh: Optional[str] = Field(None, max_length=100)
+    area: Optional[str] = Field(None, max_length=100)
+    description: Optional[str] = Field(None, max_length=2000)
     start_time: Optional[datetime] = None
     end_time: Optional[datetime] = None
     is_finished: Optional[bool] = False
-    owner: Optional[str] = None
-    contractor: Optional[str] = None
-    contact_name: Optional[str] = None
-    contact_phone: Optional[str] = None
-    contact_email: Optional[str] = None
+    owner: Optional[str] = Field(None, max_length=200)
+    contractor: Optional[str] = Field(None, max_length=200)
+    contact_name: Optional[str] = Field(None, max_length=100)
+    contact_phone: Optional[str] = Field(None, max_length=30)
+    contact_email: Optional[str] = Field(None, max_length=254)
     project_type: ProjectType | None = None
 
     @field_validator("start_time", "end_time")
@@ -29,6 +29,12 @@ class ProjectBase(BaseModel):
             tw_tz = timezone(timedelta(hours=8))
             return v.replace(tzinfo=tw_tz)
         return v
+
+    @model_validator(mode="after")
+    def validate_time_range(self) -> "ProjectBase":
+        if self.start_time and self.end_time and self.start_time > self.end_time:
+            raise ValueError("start_time must be before or equal to end_time")
+        return self
 
 
 class ProjectCreate(ProjectBase):
@@ -58,17 +64,17 @@ class ProjectCreate(ProjectBase):
 
 class ProjectUpdate(BaseModel):
     name: Optional[str] = None
-    name_zh: Optional[str] = None
-    area: Optional[str] = None
-    description: Optional[str] = None
+    name_zh: Optional[str] = Field(None, max_length=100)
+    area: Optional[str] = Field(None, max_length=100)
+    description: Optional[str] = Field(None, max_length=2000)
     start_time: Optional[datetime] = None
     end_time: Optional[datetime] = None
     is_finished: Optional[bool] = None
-    owner: Optional[str] = None
-    contractor: Optional[str] = None
-    contact_name: Optional[str] = None
-    contact_phone: Optional[str] = None
-    contact_email: Optional[str] = None
+    owner: Optional[str] = Field(None, max_length=200)
+    contractor: Optional[str] = Field(None, max_length=200)
+    contact_name: Optional[str] = Field(None, max_length=100)
+    contact_phone: Optional[str] = Field(None, max_length=30)
+    contact_email: Optional[str] = Field(None, max_length=254)
     project_type: ProjectType | None = None
 
     @field_validator("name")

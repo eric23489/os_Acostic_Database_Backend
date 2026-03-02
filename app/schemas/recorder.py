@@ -1,21 +1,21 @@
 from datetime import datetime, timedelta, timezone
 
-from pydantic import BaseModel, ConfigDict, field_serializer
+from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
 from app.enums.enums import RecorderStatus
 
 
 class RecorderBase(BaseModel):
-    brand: str
-    model: str
-    sn: str
-    sensitivity: float
-    high_gain: float | None = None
-    low_gain: float | None = None
+    brand: str = Field(..., min_length=1, max_length=50)
+    model: str = Field(..., min_length=1, max_length=50)
+    sn: str = Field(..., min_length=1, max_length=50)
+    sensitivity: float = Field(..., ge=-300, le=0)
+    high_gain: float | None = Field(None, ge=-60, le=60)
+    low_gain: float | None = Field(None, ge=-60, le=60)
     status: RecorderStatus | None = RecorderStatus.IN_SERVICE
-    owner: str | None = "Ocean Sound"
-    recorder_channels: int | None = 1
-    description: str | None = None
+    owner: str | None = Field(default="Ocean Sound", max_length=100)
+    recorder_channels: int | None = Field(default=1, ge=1, le=16)
+    description: str | None = Field(None, max_length=2000)
 
 
 class RecorderCreate(RecorderBase):
@@ -23,16 +23,16 @@ class RecorderCreate(RecorderBase):
 
 
 class RecorderUpdate(BaseModel):
-    brand: str | None = None
-    model: str | None = None
-    sn: str | None = None
-    sensitivity: float | None = None
-    high_gain: float | None = None
-    low_gain: float | None = None
+    brand: str | None = Field(None, min_length=1, max_length=50)
+    model: str | None = Field(None, min_length=1, max_length=50)
+    sn: str | None = Field(None, min_length=1, max_length=50)
+    sensitivity: float | None = Field(None, ge=-300, le=0)
+    high_gain: float | None = Field(None, ge=-60, le=60)
+    low_gain: float | None = Field(None, ge=-60, le=60)
     status: RecorderStatus | None = None
-    owner: str | None = None
-    recorder_channels: int | None = None
-    description: str | None = None
+    owner: str | None = Field(None, max_length=100)
+    recorder_channels: int | None = Field(None, ge=1, le=16)
+    description: str | None = Field(None, max_length=2000)
 
 
 class RecorderResponse(RecorderBase):

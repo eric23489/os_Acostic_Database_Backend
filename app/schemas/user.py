@@ -1,30 +1,30 @@
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, EmailStr, field_serializer, model_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_serializer, model_validator
 
 from app.enums.enums import UserRole
 
 
 class UserBase(BaseModel):
     email: EmailStr
-    full_name: str | None = None
+    full_name: str | None = Field(None, max_length=100)
     role: UserRole | None = UserRole.USER
     is_active: bool | None = True
     is_verified: bool | None = False
 
 
 class UserCreate(UserBase):
-    password: str  # Plain text password for creation
+    password: str = Field(..., min_length=8)
 
 
 class UserUpdate(BaseModel):
     email: EmailStr | None = None
-    full_name: str | None = None
+    full_name: str | None = Field(None, max_length=100)
     role: UserRole | None = None
     is_active: bool | None = None
     is_verified: bool | None = None
-    password: str | None = None
+    password: str | None = Field(None, min_length=8)
 
 
 class UserResponse(UserBase):

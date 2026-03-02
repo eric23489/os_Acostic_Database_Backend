@@ -1,7 +1,7 @@
 import logging
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.core.exceptions import (
     POINT_NAME_COLLISION,
@@ -29,6 +29,7 @@ class PointService:
     def get_point(self, point_id: int) -> PointInfo:
         point = (
             self.db.query(PointInfo)
+            .options(selectinload(PointInfo.deployments))
             .filter(PointInfo.id == point_id, PointInfo.is_deleted.is_(False))
             .first()
         )
@@ -43,7 +44,7 @@ class PointService:
         """
         point = (
             self.db.query(PointInfo)
-            .options(joinedload(PointInfo.project))
+            .options(joinedload(PointInfo.project), selectinload(PointInfo.deployments))
             .filter(PointInfo.id == point_id, PointInfo.is_deleted.is_(False))
             .first()
         )
@@ -74,7 +75,11 @@ class PointService:
         Returns:
             tuple: (items, total)
         """
-        query = self.db.query(PointInfo).filter(PointInfo.is_deleted.is_(False))
+        query = (
+            self.db.query(PointInfo)
+            .options(selectinload(PointInfo.deployments))
+            .filter(PointInfo.is_deleted.is_(False))
+        )
 
         # 篩選
         query = apply_filter(query, PointInfo, "project_id", project_id)

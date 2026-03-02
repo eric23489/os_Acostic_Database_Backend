@@ -1,7 +1,7 @@
 """Password reset related Pydantic schemas."""
 
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 
 
 class ForgotPasswordRequest(BaseModel):
@@ -21,7 +21,7 @@ class ResetPasswordRequest(BaseModel):
     """Request to reset password using token."""
 
     token: str
-    new_password: str
+    new_password: str = Field(..., min_length=8)
 
 
 class ResetPasswordResponse(BaseModel):

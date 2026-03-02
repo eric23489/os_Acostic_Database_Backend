@@ -179,23 +179,13 @@ class TestResetPassword:
             assert "expired" in response.json()["message"].lower()
 
     def test_reset_password_too_short(self, client, mock_db):
-        """Test reset password with too short password."""
-        from fastapi import HTTPException
+        """Test reset password with too short password (schema validates min_length=8)."""
+        response = client.post(
+            f"{settings.api_prefix}/auth/reset-password",
+            json={"token": "valid-token", "new_password": "short"},
+        )
 
-        with patch(
-            "app.api.v1.endpoints.api_auth.PasswordResetService"
-        ) as MockService:
-            mock_service = MockService.return_value
-            mock_service.reset_password.side_effect = HTTPException(
-                status_code=400, detail="Password must be at least 8 characters"
-            )
-
-            response = client.post(
-                f"{settings.api_prefix}/auth/reset-password",
-                json={"token": "valid-token", "new_password": "short"},
-            )
-
-            assert response.status_code == 400
+        assert response.status_code == 422
 
 
 class TestOAuthServiceUnit:
