@@ -323,4 +323,4 @@ class TestUserServiceSetPassword:
             service.set_password(1, "short")
 
         assert exc_info.value.http_status == 400
-        assert "8 characters" in exc_info.value.message
+        assert "security requirements" in exc_info.value.message

@@ -64,19 +64,21 @@ class TestInitiatePasswordReset:
         assert has_google is False
 
     def test_initiate_password_reset_inactive_user(self):
-        """Should raise error for inactive user."""
+        """Should silently return None for inactive user (prevents account enumeration)."""
         mock_db = MagicMock()
         mock_user = MagicMock()
         mock_user.is_active = False
         mock_db.query.return_value.filter.return_value.first.return_value = mock_user
 
         service = PasswordResetService(mock_db)
+        token, has_password, has_google = service.initiate_password_reset(
+            "inactive@example.com"
+        )
 
-        with pytest.raises(AppException) as exc_info:
-            service.initiate_password_reset("inactive@example.com")
-
-        assert exc_info.value.http_status == 400
-        assert "Inactive" in exc_info.value.message
+        assert token is None
+        assert has_password is False
+        assert has_google is False
+        mock_db.commit.assert_not_called()
 
     def test_initiate_password_reset_with_google_and_password(self):
         """Should generate token for user with both password and Google."""
@@ -175,7 +177,7 @@ class TestResetPassword:
             service.reset_password("valid_token", "short")
 
         assert exc_info.value.http_status == 400
-        assert "8 characters" in exc_info.value.message
+        assert "security requirements" in exc_info.value.message
 
 
 class TestSendResetEmail:

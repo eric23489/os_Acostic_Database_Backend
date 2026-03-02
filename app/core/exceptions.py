@@ -160,7 +160,7 @@ UPLOAD_ALL_FILES_SKIPPED = AppException(
 )
 MINIO_DELETE_FAILED = AppException(
     error_code="MINIO_DELETE_FAILED",
-    message="Failed to delete file from storage. Database record was not deleted.",
+    message="Failed to delete resource. Please try again or contact administrator.",
     http_status=status.HTTP_502_BAD_GATEWAY,
 )
 MINIO_UPLOAD_FAILED = AppException(
@@ -204,7 +204,7 @@ USER_EMAIL_COLLISION = AppException(
 )
 USER_PASSWORD_TOO_SHORT = AppException(
     error_code="USER_PASSWORD_TOO_SHORT",
-    message="Password must be at least 8 characters",
+    message="Password does not meet the security requirements",
     http_status=status.HTTP_400_BAD_REQUEST,
 )
 
@@ -218,6 +218,13 @@ PASSWORD_RESET_TOKEN_EXPIRED = AppException(
     error_code="PASSWORD_RESET_TOKEN_EXPIRED",
     message="Reset token has expired. Please request a new one.",
     http_status=status.HTTP_400_BAD_REQUEST,
+)
+
+# ── 系統 ─────────────────────────────────────────────────
+INTERNAL_ERROR = AppException(
+    error_code="INTERNAL_ERROR",
+    message="An unexpected error occurred",
+    http_status=status.HTTP_500_INTERNAL_SERVER_ERROR,
 )
 
 # ── OAuth ────────────────────────────────────────────────

@@ -49,4 +49,17 @@ async def validation_exception_handler(
     )
 
 
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    logger.error("Unhandled exception: %s", exc, exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error_code": "INTERNAL_ERROR",
+            "message": "An unexpected error occurred",
+            "detail": None,
+        },
+    )
+
+
 app.include_router(api_router, prefix=settings.api_prefix)

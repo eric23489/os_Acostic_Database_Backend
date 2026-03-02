@@ -1,5 +1,6 @@
 """Password reset service."""
 
+import logging
 import secrets
 from datetime import UTC, datetime, timedelta
 
@@ -7,13 +8,14 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.exceptions import (
-    AUTH_USER_INACTIVE,
     PASSWORD_RESET_TOKEN_EXPIRED,
     PASSWORD_RESET_TOKEN_INVALID,
     USER_PASSWORD_TOO_SHORT,
 )
 from app.core.security import hash_password
 from app.models.user import UserInfo
+
+logger = logging.getLogger(__name__)
 
 
 class PasswordResetService:
@@ -45,9 +47,10 @@ class PasswordResetService:
         if not user:
             return None, False, False
 
-        # Check if account is deactivated
+        # Silently block inactive accounts to prevent account enumeration
         if not user.is_active:
-            raise AUTH_USER_INACTIVE
+            logger.info("Password reset blocked for inactive account: %s", email)
+            return None, False, False
 
         has_google_oauth = user.oauth_provider == "google"
         has_password = user.password_hash is not None
