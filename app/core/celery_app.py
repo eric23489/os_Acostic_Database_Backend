@@ -31,7 +31,6 @@ celery_app.conf.update(
     task_queue_max_priority=10,
     # 任务路由
     task_routes={
-        "app.tasks.audio_tasks.process_high_priority": {"queue": "high"},
         "app.tasks.audio_tasks.finalize_completed_uploads": {"queue": "normal"},
         "app.tasks.audio_tasks.cleanup_abandoned_audio_records": {"queue": "low"},
         "app.tasks.audio_tasks.cleanup_expired_jobs": {"queue": "low"},

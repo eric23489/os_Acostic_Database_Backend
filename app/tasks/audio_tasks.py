@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.core.celery_app import celery_app
 from app.db.session import SessionLocal
-from app.enums.enums import JobStatus, UploadStatus
+from app.enums.enums import JobStatus, TaskStatus, UploadStatus
 from app.models.audio import AudioInfo
 from app.models.upload_job import UploadJob, UploadTask
 from app.services.minio_service import MinioService
@@ -43,7 +43,7 @@ def finalize_completed_uploads(self, job_id: str):
             db.query(UploadTask)
             .filter(
                 UploadTask.job_id == job_id,
-                UploadTask.status == "completed",
+                UploadTask.status == TaskStatus.COMPLETED,
             )
             .count()
         )

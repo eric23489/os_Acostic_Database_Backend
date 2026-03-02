@@ -220,6 +220,13 @@ PASSWORD_RESET_TOKEN_EXPIRED = AppException(
     http_status=status.HTTP_400_BAD_REQUEST,
 )
 
+# ── 查詢 ─────────────────────────────────────────────────
+QUERY_SORT_INVALID = AppException(
+    error_code="QUERY_SORT_INVALID",
+    message="Invalid sort field",
+    http_status=status.HTTP_400_BAD_REQUEST,
+)
+
 # ── 系統 ─────────────────────────────────────────────────
 INTERNAL_ERROR = AppException(
     error_code="INTERNAL_ERROR",

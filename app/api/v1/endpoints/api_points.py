@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.core.auth import get_current_user
 from app.db.session import get_db
 from app.models.point import PointInfo
-from app.models.user import UserRole
+from app.enums.enums import UserRole
 from app.schemas.pagination import PaginatedResponse, SortOrder
 from app.schemas.point import (
     PointCreate,

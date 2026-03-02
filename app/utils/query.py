@@ -2,9 +2,9 @@
 
 from typing import Any
 
-from fastapi import HTTPException, status
 from sqlalchemy.orm import Query
 
+from app.core.exceptions import QUERY_SORT_INVALID
 from app.schemas.pagination import SortOrder
 
 
@@ -65,23 +65,17 @@ def apply_sorting(
         套用排序後的 Query
 
     Raises:
-        HTTPException: 當 sort_by 欄位不在白名單中
+        AppException: 當 sort_by 欄位不在白名單中
     """
     if not sort_by:
         return query
 
     if sort_by not in allowed_fields:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid sort_by: '{sort_by}'. Allowed: {allowed_fields}",
-        )
+        raise QUERY_SORT_INVALID
 
     column = getattr(model, sort_by, None)
     if column is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Sort field '{sort_by}' does not exist on model",
-        )
+        raise QUERY_SORT_INVALID
 
     if order == SortOrder.DESC:
         query = query.order_by(column.desc())
