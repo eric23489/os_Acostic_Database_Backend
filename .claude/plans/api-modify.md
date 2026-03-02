@@ -1,5 +1,11 @@
 # 計畫：後端 API 列表端點改善
 
+> **狀態：已完成**
+>
+> - pagination.py、query.py 已建立
+> - 6 個 Service get_* 方法已加入 search/filter/sort/pagination 參數
+> - 6 個 API 端點已改用 PaginatedResponse
+
 ## 目標
 根據前端需求，改善後端 API 列表端點，包含三項主要改動：
 1. 必填參數改選填

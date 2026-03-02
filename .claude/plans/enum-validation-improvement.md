@@ -1,5 +1,11 @@
 # Feature: Enum 輸入驗證改進
 
+> **狀態：已完成**
+>
+> - deployment.py、recorder.py、user.py Schema 全部改用 Enum 型別
+> - Response Schema 均有 `@field_serializer` 序列化為 string
+> - 驗證通過
+
 ## 目標
 確保 API 輸入自動驗證符合 Enum 規範，拒絕無效值。
 
@@ -130,9 +136,9 @@ model_config = ConfigDict(from_attributes=True, use_enum_values=True)
 
 ## 實作檢查清單
 
-- [ ] deployment.py Schema 修改
-- [ ] recorder.py Schema 修改
-- [ ] user.py Schema 檢查
-- [ ] Response 序列化處理
-- [ ] 單元測試
-- [ ] Ruff 檢查通過
+- [x] deployment.py Schema 修改
+- [x] recorder.py Schema 修改
+- [x] user.py Schema 檢查
+- [x] Response 序列化處理
+- [x] 單元測試
+- [x] Ruff 檢查通過
