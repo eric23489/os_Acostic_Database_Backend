@@ -3,13 +3,16 @@ from dataclasses import dataclass
 from fastapi import status
 
 
-@dataclass(frozen=True)
+@dataclass
 class AppException(Exception):  # noqa: N818
     """應用程式自定義例外，包含機器可讀的 error_code。"""
 
     error_code: str
     message: str
     http_status: int
+
+    def __post_init__(self) -> None:
+        super().__init__(self.message)
 
 
 # ── 認證與授權 ──────────────────────────────────────────
