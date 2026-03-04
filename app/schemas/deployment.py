@@ -18,7 +18,7 @@ class DeploymentBase(BaseModel):
     gps_lat_exe: float | None = Field(None, ge=-90, le=90)
     gps_lon_exe: float | None = Field(None, ge=-180, le=180)
     depth_exe: float | None = Field(None, ge=0, le=11000)
-    fs: int | None = Field(None, ge=1000, le=384000)
+    fs: int | None = Field(None, ge=0, le=384000)
     sensitivity: float | None = Field(None, ge=-300, le=0)
     gain: float | None = Field(None, ge=-60, le=60)
     status: DeploymentStatus | None = DeploymentStatus.UNDEPLOYED
@@ -59,7 +59,7 @@ class DeploymentUpdate(BaseModel):
     gps_lat_exe: float | None = Field(None, ge=-90, le=90)
     gps_lon_exe: float | None = Field(None, ge=-180, le=180)
     depth_exe: float | None = Field(None, ge=0, le=11000)
-    fs: int | None = Field(None, ge=1000, le=384000)
+    fs: int | None = Field(None, ge=0, le=384000)
     sensitivity: float | None = Field(None, ge=-300, le=0)
     gain: float | None = Field(None, ge=-60, le=60)
     status: DeploymentStatus | None = None
