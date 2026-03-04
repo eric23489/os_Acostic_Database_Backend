@@ -29,7 +29,7 @@ def upgrade() -> None:
     op.add_column(
         "audio_info",
         sa.Column(
-            "upload_status", sa.String(20), server_default="completed", nullable=True
+            "upload_status", sa.String(20), server_default=sa.text("'completed'"), nullable=True
         ),
     )
     op.add_column(

@@ -17,24 +17,85 @@
   - Database: PostgreSQL, PostGIS
   - Migration: Alembic
   - Storage: MinIO
+  - Task Queue: Celery + Redis
+  - Auth: JWT (python-jose) + OAuth2 (Google)
 - **基礎設施 (Infrastructure)**:
   - Containerization: Docker, Docker Compose
   - Object Storage: MinIO (containerized)
+  - Message Broker: Redis (containerized)
 
 ## 3. 專案結構 (Project Structure)
-主要目錄結構說明：
-- `/app`: 應用程式原始碼
-  - `main.py`: 應用程式進入點 (Entry Point)
-  - `/api`: API 路由定義 (Routes)
-  - `/core`: 核心設定 (Config, Security)
-  - `/models`: 資料庫模型 (SQLAlchemy/GeoAlchemy2 Models)
-  - `/schemas`: Pydantic 資料驗證模型
-  - `/services`: 業務邏輯層
-  - `/db`: 資料庫連線與 Session 管理
-- `/alembic`: 資料庫遷移腳本 (Migrations)
-- `/tests`: 測試檔案
-- `docker-compose.yml`: Docker 編排設定
-- `requirements.txt`: Python 相依套件清單
+```
+/app
+  main.py                      # FastAPI app 進入點、lifespan、middleware 掛載
+  /api/v1
+    api.py                     # 聚合所有 router（include_router）
+    /endpoints
+      api_auth.py              # POST /auth/login, /auth/refresh
+      api_health.py            # GET /health
+      api_oauth.py             # Google OAuth2 流程
+      api_projects.py          # CRUD /projects
+      api_points.py            # CRUD /points
+      api_deployments.py       # CRUD /deployments
+      api_audio.py             # CRUD /audio
+      api_audio_upload_jobs.py # 批次上傳 job 管理
+      api_recorders.py         # CRUD /recorders
+      api_users.py             # 使用者管理
+  /core
+    config.py                  # pydantic-settings，所有環境變數
+    security.py                # JWT encode/decode
+    auth.py                    # get_current_user dependency
+    exceptions.py              # AppException dataclass + 所有預定義錯誤常數
+    middleware.py              # CORS、logging middleware
+    logging.py                 # logging 設定
+    minio.py                   # MinIO / S3 client 初始化
+    celery_app.py              # Celery app 實例
+  /models                      # SQLAlchemy ORM Models（含軟刪除欄位）
+    project.py | point.py | deployment.py | audio.py
+    recorder.py | user.py | upload_job.py
+  /schemas                     # Pydantic request/response schemas
+    project.py | point.py | deployment.py | audio.py
+    recorder.py | user.py | upload_job.py
+    common.py                  # 共用欄位（SortOrder 等）
+    pagination.py              # 分頁 schema
+    oauth.py                   # OAuth token schema
+    password_reset.py          # 密碼重設 schema
+  /services                    # 業務邏輯層（sync class，接收 Session）
+    project_service.py | point_service.py | deployment_service.py
+    audio_service.py | recorder_service.py | user_service.py
+    upload_job_service.py      # 批次上傳 job 狀態管理
+    minio_service.py           # MinIO 物件操作封裝
+    oauth_service.py           # Google OAuth token 換取與帳號綁定
+    password_reset_service.py  # 密碼重設 token 生命週期
+  /db
+    base.py                    # DeclarativeBase
+    session.py                 # SessionLocal、get_db dependency
+  /enums
+    enums.py                   # UserRole、AudioStatus 等 StrEnum
+  /utils
+    audio_path.py              # 音檔路徑解析
+    wav_header.py              # WAV header 解析
+    naming.py                  # slug 生成（中文轉拼音）
+    query.py                   # 通用查詢輔助（排序、過濾）
+    common.py | path_utils.py
+  /tasks
+    audio_tasks.py             # Celery tasks（批次上傳後處理）
+
+/alembic                       # 資料庫遷移腳本
+/tests
+  conftest.py                  # fixtures（mock_db、mock_current_user、client）
+  /integration                 # 整合測試（需實際 DB）
+  test_*.py                    # 單元 / API 測試（TestClient + MagicMock）
+/scripts                       # 維運腳本
+/docs                          # API 文件、設計說明
+
+# 根目錄設定檔
+Dockerfile | docker-compose.yml | requirements.txt
+pyproject.toml                 # ruff 設定
+pytest.ini                     # pytest 設定（testpaths、asyncio_mode）
+.pre-commit-config.yaml        # pre-commit hooks（ruff、mypy）
+alembic.ini | entrypoint.sh
+```
 
 ## 4. 程式碼規範 (Coding Guidelines)
 **AI 在生成程式碼時請嚴格遵守以下規則：**

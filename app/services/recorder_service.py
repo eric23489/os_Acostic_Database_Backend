@@ -1,11 +1,12 @@
 from datetime import datetime, timezone
 
-from fastapi import HTTPException, status
 from sqlalchemy import exists
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import (
+    RECORDER_HAS_DEPLOYMENTS,
     RECORDER_IDENTIFIER_COLLISION,
+    RECORDER_IDENTIFIER_DUPLICATE,
     RECORDER_IDENTIFIER_RESERVED,
     RECORDER_NOT_FOUND,
 )
@@ -94,7 +95,7 @@ class RecorderService:
 
     def create_recorder(self, recorder: RecorderCreate) -> RecorderInfo:
         if self.check_recorder_exists(recorder.brand, recorder.model, recorder.sn):
-            raise RECORDER_IDENTIFIER_COLLISION
+            raise RECORDER_IDENTIFIER_DUPLICATE
 
         # 檢查軟刪除名稱保留
         if self.check_soft_deleted_recorder_exists(
@@ -139,7 +140,7 @@ class RecorderService:
             or new_sn != db_recorder.sn
         ):
             if self.check_recorder_exists(new_brand, new_model, new_sn):
-                raise RECORDER_IDENTIFIER_COLLISION
+                raise RECORDER_IDENTIFIER_DUPLICATE
 
         for field, value in update_data.items():
             setattr(db_recorder, field, value)
@@ -212,10 +213,7 @@ class RecorderService:
             .count()
         )
         if deployment_count > 0:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Cannot delete recorder: {deployment_count} deployment(s) reference this recorder. Delete deployments first.",
-            )
+            raise RECORDER_HAS_DEPLOYMENTS
 
         # 記錄識別資訊
         recorder_identifier = f"{recorder.brand}/{recorder.model}/{recorder.sn}"

@@ -1,7 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_user
+from app.core.exceptions import (
+    DEPLOYMENT_NOT_FOUND,
+    PERMISSION_ADMIN_REQUIRED,
+    PERMISSION_RESTORE_DENIED,
+)
 from app.db.session import get_db
 from app.models.deployment import DeploymentInfo
 from app.enums.enums import UserRole
@@ -103,18 +108,12 @@ def restore_deployment(
         db.query(DeploymentInfo).filter(DeploymentInfo.id == deployment_id).first()
     )
     if not deployment:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Deployment not found",
-        )
+        raise DEPLOYMENT_NOT_FOUND
     if (
         current_user.role != UserRole.ADMIN.value
         and current_user.id != deployment.deleted_by
     ):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only the deleter or admin can restore this resource",
-        )
+        raise PERMISSION_RESTORE_DENIED
     return DeploymentService(db).restore_deployment(deployment_id)
 
 
@@ -134,8 +133,5 @@ def hard_delete_deployment(
     需要 Admin 權限。
     """
     if current_user.role != UserRole.ADMIN.value:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin permission required for permanent deletion",
-        )
+        raise PERMISSION_ADMIN_REQUIRED
     return DeploymentService(db).hard_delete_deployment(deployment_id)

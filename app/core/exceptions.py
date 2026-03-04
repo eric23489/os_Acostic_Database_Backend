@@ -183,6 +183,16 @@ RECORDER_IDENTIFIER_RESERVED = AppException(
     message="Identifier reserved by deleted recorder. Hard delete to release.",
     http_status=status.HTTP_400_BAD_REQUEST,
 )
+RECORDER_IDENTIFIER_DUPLICATE = AppException(
+    error_code="RECORDER_IDENTIFIER_DUPLICATE",
+    message="Active recorder with this brand/model/sn already exists.",
+    http_status=status.HTTP_400_BAD_REQUEST,
+)
+RECORDER_HAS_DEPLOYMENTS = AppException(
+    error_code="RECORDER_HAS_DEPLOYMENTS",
+    message="Cannot delete recorder: deployments reference this recorder. Delete deployments first.",
+    http_status=status.HTTP_400_BAD_REQUEST,
+)
 RECORDER_IDENTIFIER_COLLISION = AppException(
     error_code="RECORDER_IDENTIFIER_COLLISION",
     message="Active recorder with this brand/model/sn already exists. Cannot restore.",
