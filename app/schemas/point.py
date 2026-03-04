@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Any, List, Optional
 from datetime import datetime, timezone, timedelta
 from pydantic import BaseModel, ConfigDict, Field, computed_field, field_serializer
 from app.schemas.project import ProjectResponse
@@ -30,16 +30,14 @@ class PointResponse(PointBase):
     id: int
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+    deployments: List[Any] = Field(default_factory=list, exclude=True)
 
     model_config = ConfigDict(from_attributes=True)
 
     @computed_field
     @property
     def deployment_count(self) -> int:
-        deployments = getattr(self, "deployments", None)
-        if deployments is None:
-            return 0
-        return len(deployments)
+        return len(self.deployments)
 
     @field_serializer("created_at", "updated_at")
     def serialize_dt(self, dt: Optional[datetime], _info):
