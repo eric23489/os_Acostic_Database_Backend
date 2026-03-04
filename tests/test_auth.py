@@ -157,7 +157,7 @@ class TestGetCurrentAdminUser:
             get_current_admin_user(current_user=mock_user)
 
         assert exc_info.value.http_status == 403
-        assert "doesn't have enough privileges" in exc_info.value.message
+        assert exc_info.value.error_code == "PERMISSION_ADMIN_REQUIRED"
 
     def test_get_current_admin_user_other_role(self):
         """Should raise 403 for any non-admin role."""

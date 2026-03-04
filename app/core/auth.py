@@ -7,7 +7,7 @@ from app.core.config import settings
 from app.core.exceptions import (
     AUTH_TOKEN_INVALID,
     AUTH_USER_INACTIVE,
-    PERMISSION_DENIED,
+    PERMISSION_ADMIN_REQUIRED,
 )
 from app.db.session import get_db
 from app.enums.enums import UserRole
@@ -41,5 +41,5 @@ def get_current_admin_user(
     current_user: UserInfo = Depends(get_current_user),
 ) -> UserInfo:
     if current_user.role != UserRole.ADMIN.value:
-        raise PERMISSION_DENIED
+        raise PERMISSION_ADMIN_REQUIRED
     return current_user

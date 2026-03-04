@@ -14,6 +14,7 @@ from app.core.exceptions import (
     OAUTH_CODE_EXCHANGE_FAILED,
     OAUTH_NOT_CONFIGURED,
     OAUTH_NOT_LINKED,
+    OAUTH_USERINFO_FETCH_FAILED,
 )
 from app.core.security import create_access_token
 from app.models.user import UserInfo
@@ -101,7 +102,7 @@ class OAuthService:
         )
 
         if response.status_code != 200:
-            raise OAUTH_CODE_EXCHANGE_FAILED
+            raise OAUTH_USERINFO_FETCH_FAILED
 
         return response.json()
 
