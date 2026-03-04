@@ -397,11 +397,11 @@ class TestRecorderServiceHardDelete:
 
         service = RecorderService(mock_db)
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(AppException) as exc_info:
             service.hard_delete_recorder(1)
 
-        assert exc_info.value.status_code == 400
-        assert "3 deployment(s)" in exc_info.value.detail
+        assert exc_info.value.http_status == 400
+        assert exc_info.value.error_code == "RECORDER_HAS_DEPLOYMENTS"
 
     def test_hard_delete_recorder_not_found_raises_404(self):
         """測試刪除不存在的 Recorder 時拋出 404。"""
