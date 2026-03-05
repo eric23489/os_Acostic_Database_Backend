@@ -303,6 +303,11 @@ OAUTH_NOT_LINKED = AppException(
     message="Account is not linked to Google",
     http_status=status.HTTP_400_BAD_REQUEST,
 )
+OAUTH_PASSWORD_REQUIRED = AppException(
+    error_code="OAUTH_PASSWORD_REQUIRED",
+    message="Please set a password before unlinking Google account",
+    http_status=status.HTTP_400_BAD_REQUEST,
+)
 OAUTH_USERINFO_FETCH_FAILED = AppException(
     error_code="OAUTH_USERINFO_FETCH_FAILED",
     message="Failed to fetch user info from Google.",

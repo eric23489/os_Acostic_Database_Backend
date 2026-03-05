@@ -5,7 +5,11 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from app.core.config import settings
-from app.core.exceptions import PASSWORD_RESET_TOKEN_EXPIRED, PASSWORD_RESET_TOKEN_INVALID
+from app.core.exceptions import (
+    OAUTH_PASSWORD_REQUIRED,
+    PASSWORD_RESET_TOKEN_EXPIRED,
+    PASSWORD_RESET_TOKEN_INVALID,
+)
 from app.enums.enums import UserRole
 
 
@@ -217,8 +221,7 @@ class TestOAuthServiceUnit:
 
     def test_unlink_requires_password(self, mock_db):
         """Test that unlinking requires a password."""
-        from fastapi import HTTPException
-
+        from app.core.exceptions import AppException
         from app.services.oauth_service import OAuthService
 
         mock_user = MagicMock()
@@ -227,11 +230,10 @@ class TestOAuthServiceUnit:
 
         service = OAuthService(mock_db)
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(AppException) as exc_info:
             service.unlink_google_account(mock_user)
 
-        assert exc_info.value.status_code == 400
-        assert "password" in exc_info.value.detail.lower()
+        assert exc_info.value is OAUTH_PASSWORD_REQUIRED
 
 
 class TestPasswordResetServiceUnit:

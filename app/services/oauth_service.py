@@ -14,6 +14,7 @@ from app.core.exceptions import (
     OAUTH_CODE_EXCHANGE_FAILED,
     OAUTH_NOT_CONFIGURED,
     OAUTH_NOT_LINKED,
+    OAUTH_PASSWORD_REQUIRED,
     OAUTH_USERINFO_FETCH_FAILED,
 )
 from app.core.security import create_access_token
@@ -272,12 +273,7 @@ class OAuthService:
 
         # Check if user has password (required to unlink)
         if not user.password_hash:
-            from fastapi import HTTPException, status
-
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Please set a password before unlinking Google account",
-            )
+            raise OAUTH_PASSWORD_REQUIRED
 
         # Unlink
         user.oauth_provider = None

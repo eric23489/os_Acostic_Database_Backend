@@ -4,8 +4,6 @@ import pytest
 from datetime import datetime, UTC
 from unittest.mock import MagicMock, patch
 
-from fastapi import HTTPException
-
 from app.core.exceptions import AppException
 
 from app.services.oauth_service import OAuthService, create_jwt_for_user
@@ -404,11 +402,11 @@ class TestUnlinkGoogleAccount:
         mock_user.password_hash = None
         service = OAuthService(mock_db)
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(AppException) as exc_info:
             service.unlink_google_account(mock_user)
 
-        assert exc_info.value.status_code == 400
-        assert "set a password" in exc_info.value.detail
+        assert exc_info.value.http_status == 400
+        assert "set a password" in exc_info.value.message
 
 
 class TestCreateJwtForUser:
