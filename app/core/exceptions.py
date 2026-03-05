@@ -1,6 +1,10 @@
-from dataclasses import dataclass
+from dataclasses import FrozenInstanceError, dataclass
 
 from fastapi import status
+
+_EXCEPTION_INTERNAL_ATTRS = frozenset(
+    {"__traceback__", "__cause__", "__context__", "__suppress_context__"}
+)
 
 
 @dataclass(frozen=True)
@@ -14,6 +18,25 @@ class AppException(Exception):  # noqa: N818
 
     def __post_init__(self) -> None:
         super().__init__(self.message)
+
+
+def _app_exception_setattr(self: AppException, name: str, value: object) -> None:
+    """允許 Python 例外機制設定 __traceback__ 等內部屬性，其餘欄位維持 frozen。"""
+    if name in _EXCEPTION_INTERNAL_ATTRS:
+        object.__setattr__(self, name, value)
+        return
+    raise FrozenInstanceError(f"cannot assign to field {name!r}")
+
+
+def _app_exception_delattr(self: AppException, name: str) -> None:
+    if name in _EXCEPTION_INTERNAL_ATTRS:
+        object.__delattr__(self, name)
+        return
+    raise FrozenInstanceError(f"cannot delete field {name!r}")
+
+
+AppException.__setattr__ = _app_exception_setattr  # type: ignore[method-assign]
+AppException.__delattr__ = _app_exception_delattr  # type: ignore[method-assign]
 
 
 # ── 認證與授權 ──────────────────────────────────────────
