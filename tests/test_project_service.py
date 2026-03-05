@@ -1,7 +1,6 @@
 from unittest.mock import MagicMock
 
 import pytest
-from fastapi import HTTPException
 
 from app.core.exceptions import AppException
 from app.services.project_service import ProjectService
@@ -70,14 +69,14 @@ def test_create_project_no_name_provided(mock_db):
     """
     測試未提供名稱時的錯誤處理。
 
-    當 name 和 name_zh 都未提供時，應拋出 HTTPException。
+    當 name 和 name_zh 都未提供時，應拋出 AppException。
     """
     service = ProjectService(mock_db)
     # 不提供 name 和 name_zh
     project_in = ProjectCreate()
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(AppException) as exc_info:
         service.create_project(project_in)
 
-    assert exc_info.value.status_code == 400
-    assert "Either 'name' or 'name_zh' must be provided" in exc_info.value.detail
+    assert exc_info.value.http_status == 400
+    assert "Either 'name' or 'name_zh' must be provided" in exc_info.value.message
