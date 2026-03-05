@@ -13,9 +13,11 @@ from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 from botocore.exceptions import ClientError
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import (
+    AUDIO_CONCURRENT_CONFLICT,
     DEPLOYMENT_NOT_FOUND,
     MINIO_UPLOAD_FAILED,
     UPLOAD_ALL_FILES_SKIPPED,
@@ -204,7 +206,11 @@ class UploadJobService:
             self.db.add(audio)
             audio_map[object_key] = audio
 
-        self.db.flush()  # 取得 audio.id
+        try:
+            self.db.flush()  # 取得 audio.id
+        except IntegrityError:
+            self.db.rollback()
+            raise AUDIO_CONCURRENT_CONFLICT
 
         # 7. 建立 Job
         job = UploadJob(

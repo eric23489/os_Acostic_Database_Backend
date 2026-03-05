@@ -1,12 +1,12 @@
 import logging
 from datetime import UTC, datetime, timedelta
 
-from fastapi import HTTPException, status
 from sqlalchemy.orm import Session, selectinload
 
 from app.core.exceptions import (
     PROJECT_NAME_COLLISION,
     PROJECT_NAME_DUPLICATE,
+    PROJECT_NAME_REQUIRED,
     PROJECT_NAME_RESERVED,
     PROJECT_NOT_FOUND,
 )
@@ -92,10 +92,7 @@ class ProjectService:
         # Auto-generate name from name_zh if name is not provided
         if not project_in.name:
             if not project_in.name_zh:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Either 'name' or 'name_zh' must be provided.",
-                )
+                raise PROJECT_NAME_REQUIRED
 
             base_slug = generate_slug_from_zh(project_in.name_zh)
             candidate_name = base_slug

@@ -50,12 +50,12 @@ def upgrade() -> None:
             "deployment_id", sa.Integer(), sa.ForeignKey("deployment_info.id"), nullable=False
         ),
         sa.Column("user_id", sa.Integer(), sa.ForeignKey("user_info.id"), nullable=False),
-        sa.Column("status", sa.String(20), default="pending"),
-        sa.Column("priority", sa.Integer(), default=5),
-        sa.Column("total_files", sa.Integer(), default=0),
-        sa.Column("uploaded_count", sa.Integer(), default=0),
-        sa.Column("completed_count", sa.Integer(), default=0),
-        sa.Column("failed_count", sa.Integer(), default=0),
+        sa.Column("status", sa.String(20), server_default=sa.text("'pending'")),
+        sa.Column("priority", sa.Integer(), server_default=sa.text("'5'")),
+        sa.Column("total_files", sa.Integer(), server_default=sa.text("'0'")),
+        sa.Column("uploaded_count", sa.Integer(), server_default=sa.text("'0'")),
+        sa.Column("completed_count", sa.Integer(), server_default=sa.text("'0'")),
+        sa.Column("failed_count", sa.Integer(), server_default=sa.text("'0'")),
         sa.Column(
             "created_at", sa.DateTime(timezone=True), server_default=sa.func.now()
         ),
@@ -77,18 +77,18 @@ def upgrade() -> None:
         sa.Column("object_key", sa.String(1024), nullable=False),
         sa.Column("file_size", sa.Integer(), nullable=True),
         sa.Column("checksum", sa.String(64), nullable=True),
-        sa.Column("status", sa.String(20), default="pending"),
+        sa.Column("status", sa.String(20), server_default=sa.text("'pending'")),
         sa.Column("presigned_url", sa.Text(), nullable=True),
         sa.Column("url_expires_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column(
             "audio_id", sa.Integer(), sa.ForeignKey("audio_info.id"), nullable=False
         ),
         sa.Column("error_message", sa.Text(), nullable=True),
-        sa.Column("retry_count", sa.Integer(), default=0),
+        sa.Column("retry_count", sa.Integer(), server_default=sa.text("'0'")),
         sa.Column("upload_id", sa.String(100), nullable=True),
         sa.Column("total_parts", sa.Integer(), nullable=True),
-        sa.Column("completed_parts", sa.Integer(), default=0),
-        sa.Column("part_size", sa.Integer(), default=104857600),
+        sa.Column("completed_parts", sa.Integer(), server_default=sa.text("'0'")),
+        sa.Column("part_size", sa.Integer(), server_default=sa.text("'104857600'")),
         sa.Column("part_etags", sa.JSON(), nullable=True),
         sa.Column(
             "created_at", sa.DateTime(timezone=True), server_default=sa.func.now()

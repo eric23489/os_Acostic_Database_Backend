@@ -3,13 +3,14 @@ from dataclasses import dataclass
 from fastapi import status
 
 
-@dataclass
+@dataclass(frozen=True)
 class AppException(Exception):  # noqa: N818
     """應用程式自定義例外，包含機器可讀的 error_code。"""
 
     error_code: str
     message: str
     http_status: int
+    headers: dict | None = None
 
     def __post_init__(self) -> None:
         super().__init__(self.message)
@@ -20,6 +21,7 @@ AUTH_TOKEN_INVALID = AppException(
     error_code="AUTH_TOKEN_INVALID",
     message="Could not validate credentials",
     http_status=status.HTTP_401_UNAUTHORIZED,
+    headers={"WWW-Authenticate": "Bearer"},
 )
 AUTH_USER_INACTIVE = AppException(
     error_code="AUTH_USER_INACTIVE",
@@ -48,6 +50,11 @@ PERMISSION_RESTORE_DENIED = AppException(
 )
 
 # ── Project ─────────────────────────────────────────────
+PROJECT_NAME_REQUIRED = AppException(
+    error_code="PROJECT_NAME_REQUIRED",
+    message="Either 'name' or 'name_zh' must be provided.",
+    http_status=status.HTTP_400_BAD_REQUEST,
+)
 PROJECT_NOT_FOUND = AppException(
     error_code="PROJECT_NOT_FOUND",
     message="Project not found",

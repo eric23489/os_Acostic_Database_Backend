@@ -71,7 +71,7 @@ def get_audio_details(
 @router.get("/{audio_id}/download-url", response_model=AudioDownloadUrlResponse)
 def get_audio_download_url(
     audio_id: int,
-    expires_in: int = 3600,
+    expires_in: int = Query(3600, ge=60, le=604800),
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
