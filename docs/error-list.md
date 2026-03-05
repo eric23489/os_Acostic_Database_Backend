@@ -1,6 +1,49 @@
 # API Error List
 
-本文件整理所有 API 錯誤回傳格式，供前端開發與除錯參考。
+本文件整理所有 API 錯誤回傳格式，供前後端開發與 AI 代理人參考。
+
+## AppException 架構
+
+所有 API 錯誤統一使用 `AppException`（`app/core/exceptions.py`）。
+禁止在 service 層 raise `HTTPException`。
+
+**dataclass 欄位：**
+| 欄位 | 型別 | 說明 |
+|------|------|------|
+| `error_code` | str | 機器可讀識別碼，前端以此判斷錯誤類型 |
+| `message` | str | 人可讀說明，可直接顯示給使用者 |
+| `http_status` | int | HTTP 狀態碼 |
+| `headers` | dict \| None | 選填，用於 WWW-Authenticate 等 header |
+
+---
+
+## 開發 SOP
+
+### 新增錯誤常數
+1. 查閱本文件，確認同義常數不存在
+2. 在 `app/core/exceptions.py` 對應分類區塊末尾新增：
+   ```python
+   FOO_BAR_ERROR = AppException(
+       error_code="FOO_BAR_ERROR",
+       message="...",
+       http_status=status.HTTP_4XX_...,
+   )
+   ```
+3. 在 service 層 import 並 `raise FOO_BAR_ERROR`
+4. 更新本文件對應分類表格
+
+### 測試寫法
+```python
+with pytest.raises(AppException) as exc_info:
+    service.some_method(...)
+
+assert exc_info.value is FOO_BAR_ERROR   # 推薦：直接比對常數
+# 或
+assert exc_info.value.http_status == 400
+assert exc_info.value.error_code == "FOO_BAR_ERROR"
+```
+
+---
 
 ## 回應格式
 
@@ -35,7 +78,6 @@
 | `PERMISSION_DENIED` | 403 | The user doesn't have enough privileges |
 | `PERMISSION_ADMIN_REQUIRED` | 403 | Admin permission required |
 | `PERMISSION_RESTORE_DENIED` | 403 | Only the deleter or admin can restore this resource |
-| *(HTTPException)* | 400 | Either 'name' or 'name_zh' must be provided. |
 
 ---
 
@@ -43,6 +85,7 @@
 
 | error_code | HTTP Status | message |
 |------------|-------------|---------|
+| `PROJECT_NAME_REQUIRED` | 400 | Either 'name' or 'name_zh' must be provided. |
 | `PROJECT_NOT_FOUND` | 404 | Project not found |
 | `PROJECT_NAME_DUPLICATE` | 400 | Project with this name already exists |
 | `PROJECT_NAME_RESERVED` | 400 | Name reserved by deleted project. Hard delete to release. |
@@ -110,7 +153,7 @@
 | `RECORDER_NOT_FOUND` | 404 | Recorder not found |
 | `RECORDER_IDENTIFIER_RESERVED` | 400 | Identifier reserved by deleted recorder. Hard delete to release. |
 | `RECORDER_IDENTIFIER_COLLISION` | 400 | Active recorder with this brand/model/sn already exists. Cannot restore. |
-| *(HTTPException)* | 400 | Cannot delete recorder: {n} deployment(s) reference this recorder. Delete deployments first. |
+| `RECORDER_HAS_DEPLOYMENTS` | 400 | Cannot delete recorder: deployments reference this recorder. Delete deployments first. |
 
 ---
 
@@ -146,7 +189,7 @@
 | `OAUTH_ALREADY_LINKED` | 400 | Account already linked to Google |
 | `OAUTH_ACCOUNT_IN_USE` | 400 | This Google account is already linked to another user |
 | `OAUTH_NOT_LINKED` | 400 | Account is not linked to Google |
-| *(HTTPException)* | 400 | Please set a password before unlinking Google account |
+| `OAUTH_PASSWORD_REQUIRED` | 400 | Please set a password before unlinking Google account |
 
 ---
 
@@ -161,6 +204,4 @@
 | 409 Conflict | 1 | 並發衝突 |
 | 500 Server Error | 3 | 伺服器錯誤 |
 | 502 Bad Gateway | 2 | 外部儲存錯誤 |
-| **合計** | **41** | 38 AppException + 3 HTTPException |
-
-> 保留 HTTPException 的三個情境：1) Recorder 有 Deployment 引用時的動態錯誤訊息、2) Project 未提供 name 或 name_zh、3) OAuth unlink 未設密碼。
+| **合計** | **41** | 41 AppException + 0 HTTPException |

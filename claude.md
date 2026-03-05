@@ -173,7 +173,7 @@ Index("uq_xxx_active", "field", unique=True, postgresql_where=(is_deleted.is_(Fa
 - API: `DELETE /api/v1/{resources}/{id}/permanent` (需 Admin)
 - 刪除順序：MinIO 物件 → MinIO Bucket → DB 記錄 (先子後父)
 - 軟刪除名稱保留，直到 Hard Delete 釋放
-- 詳細範本參考：`.claude/docs/delete-patterns.md`
+- 詳細範本參考：`docs/delete-patterns.md`
 
 ### 多角色討論模式
 手動觸發不同角色的 Task Agent 進行深度討論：
