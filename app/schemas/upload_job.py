@@ -124,6 +124,7 @@ class MultipartInitResponse(BaseModel):
     upload_id: str
     total_parts: int
     part_size: int
+    checksum_algorithm: str = "SHA256"
 
 
 class MultipartUrlsRequest(BaseModel):
@@ -150,6 +151,7 @@ class PartCompleteRequest(BaseModel):
 
     part_number: int
     etag: str
+    checksum_sha256: str | None = None
 
 
 class MultipartCompleteRequest(BaseModel):

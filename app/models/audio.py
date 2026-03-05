@@ -4,7 +4,6 @@ from sqlalchemy import (
     Boolean,
     Column,
     DateTime,
-    Float,
     ForeignKey,
     Index,
     Integer,
@@ -32,7 +31,7 @@ class AudioInfo(Base):
     file_size = Column(BigInteger)
     checksum = Column(String(64))
     record_time = Column(DateTime(timezone=True), index=True)
-    record_duration = Column(Float)
+    record_duration = Column(Integer)
     fs = Column(Integer)
     recorder_channel = Column(Integer)
     audio_channels = Column(Integer)

@@ -1,3 +1,5 @@
+import base64
+import hashlib
 import uuid
 from datetime import datetime
 
@@ -35,6 +37,19 @@ class TestAudioUploadIntegration:
         """根據 SN 和時間產生有效的檔案名稱"""
         timestamp = datetime.now().strftime("%y%m%d%H%M%S")
         return f"{sn}.{timestamp}.wav"
+
+    @staticmethod
+    def compute_sha256(data: bytes) -> str:
+        """計算 data 的 SHA256，回傳 Base64 編碼字串。"""
+        return base64.b64encode(hashlib.sha256(data).digest()).decode()
+
+    @staticmethod
+    def checksum_headers(sha256: str) -> dict[str, str]:
+        """組裝 MinIO checksum 上傳所需的兩個 header。"""
+        return {
+            "x-amz-sdk-checksum-algorithm": "SHA256",
+            "x-amz-checksum-sha256": sha256,
+        }
 
     def test_single_part_upload(
         self,
@@ -86,7 +101,12 @@ class TestAudioUploadIntegration:
         presigned_url = response.json()["parts"][0]["presigned_url"]
 
         # 4. 實際上傳檔案到 MinIO
-        upload_response = httpx.put(presigned_url, content=test_file_content)
+        sha256 = self.compute_sha256(test_file_content)
+        upload_response = httpx.put(
+            presigned_url,
+            content=test_file_content,
+            headers=self.checksum_headers(sha256),
+        )
         assert upload_response.status_code == 200
         etag = upload_response.headers["ETag"]
 
@@ -94,7 +114,7 @@ class TestAudioUploadIntegration:
         response = api_client.post(
             f"{api_prefix}/audio-upload-jobs/{job_id}/tasks/{task_id}/multipart/part-complete",
             headers=auth_headers,
-            json={"part_number": 1, "etag": etag},
+            json={"part_number": 1, "etag": etag, "checksum_sha256": sha256},
         )
         assert response.status_code == 200, response.json()
 
@@ -102,7 +122,7 @@ class TestAudioUploadIntegration:
         response = api_client.post(
             f"{api_prefix}/audio-upload-jobs/{job_id}/tasks/{task_id}/multipart/complete",
             headers=auth_headers,
-            json={"parts": [{"part_number": 1, "etag": etag}]},
+            json={"parts": [{"part_number": 1, "etag": etag, "checksum_sha256": sha256}]},
         )
         assert response.status_code == 200, response.json()
 
@@ -201,10 +221,15 @@ class TestAudioUploadIntegration:
             end = start + part_size
             chunk = large_file_content[start:end]
 
-            upload_response = httpx.put(url_info["presigned_url"], content=chunk)
+            sha256 = self.compute_sha256(chunk)
+            upload_response = httpx.put(
+                url_info["presigned_url"],
+                content=chunk,
+                headers=self.checksum_headers(sha256),
+            )
             assert upload_response.status_code == 200
             etag = upload_response.headers["ETag"]
-            completed_parts.append({"part_number": part_number, "etag": etag})
+            completed_parts.append({"part_number": part_number, "etag": etag, "checksum_sha256": sha256})
 
         # 5. 回報 Parts 完成
         for part in completed_parts:
@@ -291,14 +316,19 @@ class TestAudioUploadIntegration:
             presigned_url = urls_res.json()["parts"][0]["presigned_url"]
 
             # Upload
-            upload_res = httpx.put(presigned_url, content=task_data["content"])
+            sha256 = self.compute_sha256(task_data["content"])
+            upload_res = httpx.put(
+                presigned_url,
+                content=task_data["content"],
+                headers=self.checksum_headers(sha256),
+            )
             etag = upload_res.headers["ETag"]
 
             # Part Complete
             part_complete_res = api_client.post(
                 f"{api_prefix}/audio-upload-jobs/{job_id}/tasks/{task_id}/multipart/part-complete",
                 headers=auth_headers,
-                json={"part_number": 1, "etag": etag},
+                json={"part_number": 1, "etag": etag, "checksum_sha256": sha256},
             )
             assert part_complete_res.status_code == 200
 
@@ -306,7 +336,7 @@ class TestAudioUploadIntegration:
             complete_res = api_client.post(
                 f"{api_prefix}/audio-upload-jobs/{job_id}/tasks/{task_id}/multipart/complete",
                 headers=auth_headers,
-                json={"parts": [{"part_number": 1, "etag": etag}]},
+                json={"parts": [{"part_number": 1, "etag": etag, "checksum_sha256": sha256}]},
             )
             assert complete_res.status_code == 200
 
@@ -390,7 +420,12 @@ class TestAudioUploadIntegration:
         presigned_url = response.json()["parts"][0]["presigned_url"]
 
         # 4. 實際上傳檔案到 MinIO
-        upload_response = httpx.put(presigned_url, content=test_file_content)
+        sha256 = self.compute_sha256(test_file_content)
+        upload_response = httpx.put(
+            presigned_url,
+            content=test_file_content,
+            headers=self.checksum_headers(sha256),
+        )
         assert upload_response.status_code == 200
         etag = upload_response.headers["ETag"]
 
@@ -398,7 +433,7 @@ class TestAudioUploadIntegration:
         response = api_client.post(
             f"{api_prefix}/audio-upload-jobs/{job_id}/tasks/{task_id}/multipart/part-complete",
             headers=auth_headers,
-            json={"part_number": 1, "etag": etag},
+            json={"part_number": 1, "etag": etag, "checksum_sha256": sha256},
         )
         assert response.status_code == 200, response.json()
 
@@ -406,7 +441,7 @@ class TestAudioUploadIntegration:
         response = api_client.post(
             f"{api_prefix}/audio-upload-jobs/{job_id}/tasks/{task_id}/multipart/complete",
             headers=auth_headers,
-            json={"parts": [{"part_number": 1, "etag": etag}]},
+            json={"parts": [{"part_number": 1, "etag": etag, "checksum_sha256": sha256}]},
         )
         assert response.status_code == 200, response.json()
 
@@ -483,17 +518,22 @@ class TestAudioUploadIntegration:
             json={"part_numbers": [1]},
         )
         presigned_url = urls_resp.json()["parts"][0]["presigned_url"]
-        upload_resp = httpx.put(presigned_url, content=test_file_content)
+        sha256 = self.compute_sha256(test_file_content)
+        upload_resp = httpx.put(
+            presigned_url,
+            content=test_file_content,
+            headers=self.checksum_headers(sha256),
+        )
         etag = upload_resp.headers["ETag"]
         api_client.post(
             f"{api_prefix}/audio-upload-jobs/{job_id}/tasks/{task_id}/multipart/part-complete",
             headers=auth_headers,
-            json={"part_number": 1, "etag": etag},
+            json={"part_number": 1, "etag": etag, "checksum_sha256": sha256},
         )
         api_client.post(
             f"{api_prefix}/audio-upload-jobs/{job_id}/tasks/{task_id}/multipart/complete",
             headers=auth_headers,
-            json={"parts": [{"part_number": 1, "etag": etag}]},
+            json={"parts": [{"part_number": 1, "etag": etag, "checksum_sha256": sha256}]},
         )
 
         # 取得 AudioInfo ID

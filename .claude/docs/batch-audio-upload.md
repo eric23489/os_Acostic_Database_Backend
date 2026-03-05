@@ -23,8 +23,8 @@
 | 1 | POST | `/` | 建立任務，預建 AudioInfo；201 全成功 / 207 有 skip |
 | 2 | POST | `/{job_id}/tasks/{task_id}/multipart/init` | 初始化 Multipart Upload（冪等） |
 | 3 | POST | `/{job_id}/tasks/{task_id}/multipart/urls` | 取得 Part presigned URLs（可分批） |
-| 4 | PUT | `{presigned_url}` (直接傳 MinIO) | 上傳單一 Part，取得 ETag |
-| 5 | POST | `/{job_id}/tasks/{task_id}/multipart/part-complete` | 回報 Part 完成 + ETag |
+| 4 | PUT | `{presigned_url}` (直接傳 MinIO) | 上傳單一 Part，需帶 SHA256 checksum header |
+| 5 | POST | `/{job_id}/tasks/{task_id}/multipart/part-complete` | 回報 Part 完成 + ETag + checksum_sha256 |
 | 6 | POST | `/{job_id}/tasks/{task_id}/multipart/complete` | 完成整個檔案；WAV header 自動解析 |
 | — | GET | `/{job_id}` | 查詢任務進度（含 estimated_remaining） |
 | — | GET | `/{job_id}/tasks/{task_id}/progress` | 斷點續傳：查詢 completed/remaining parts |
@@ -74,12 +74,13 @@
  │ ═══════ 對每個 Part 重複 ═══════
  │                     │                     │
  │ PUT presigned_url   │                     │
+ │ (x-amz-checksum-sha256: {base64})         │
  │────────────────────────────────────────── >│
  │ (ETag)              │                     │
  │< ──────────────────────────────────────────│
  │                     │                     │
  │ POST /part-complete │                     │
- │ {part_number, etag} │                     │
+ │ {part_number, etag, checksum_sha256}      │
  │────────────────────>│                     │
  │ {status: "ok"}      │                     │
  │<────────────────────│                     │
@@ -146,7 +147,8 @@
 {
   "upload_id": "minio_upload_xyz789",
   "total_parts": 14,
-  "part_size": 104857600
+  "part_size": 104857600,
+  "checksum_algorithm": "SHA256"
 }
 ```
 
@@ -171,7 +173,11 @@
 ```json
 // POST /api/v1/audio-upload-jobs/{job_id}/tasks/{task_id}/multipart/part-complete
 // Request
-{"part_number": 1, "etag": "\"d41d8cd98f00b204e9800998ecf8427e\""}
+{
+  "part_number": 1,
+  "etag": "\"d41d8cd98f00b204e9800998ecf8427e\"",
+  "checksum_sha256": "47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU="
+}
 
 // Response
 {"status": "ok"}
@@ -184,8 +190,8 @@
 // Request
 {
   "parts": [
-    {"part_number": 1, "etag": "\"abc...\""},
-    {"part_number": 2, "etag": "\"def...\""}
+    {"part_number": 1, "etag": "\"abc...\"", "checksum_sha256": "47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU="},
+    {"part_number": 2, "etag": "\"def...\"", "checksum_sha256": "RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o="}
   ]
 }
 
@@ -242,7 +248,7 @@ class AudioBatchItem(BaseModel):
     file_size: int | None = None
     checksum: str | None = None
     record_time: datetime | None = None
-    record_duration: float | None = None
+    record_duration: int | None = None
     fs: int | None = None
     recorder_channel: int | None = 0
     audio_channels: int | None = 1

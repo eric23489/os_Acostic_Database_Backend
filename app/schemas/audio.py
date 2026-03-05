@@ -21,7 +21,7 @@ class AudioBase(BaseModel):
     file_size: int | None = Field(None, gt=0, le=10_737_418_240)
     checksum: str | None = None
     record_time: datetime | None = None
-    record_duration: float | None = Field(None, gt=0)
+    record_duration: int | None = Field(None, gt=0)
     fs: int | None = Field(None, ge=0, le=384000)
     recorder_channel: int | None = Field(default=0, ge=0, le=16)
     audio_channels: int | None = Field(default=1, ge=1, le=16)
@@ -52,7 +52,7 @@ class AudioUpdate(BaseModel):
     file_size: int | None = None
     checksum: str | None = None
     record_time: datetime | None = None
-    record_duration: float | None = None
+    record_duration: int | None = None
     fs: int | None = Field(None, ge=0, le=384000)
     recorder_channel: int | None = None
     audio_channels: int | None = None
@@ -128,7 +128,7 @@ class AudioBatchItem(BaseModel):
     file_size: int | None = Field(None, gt=0, le=10_737_418_240)
     checksum: str | None = None
     record_time: datetime | None = None
-    record_duration: float | None = Field(None, gt=0)
+    record_duration: int | None = Field(None, gt=0)
     fs: int | None = Field(None, ge=0, le=384000)
     recorder_channel: int | None = Field(default=0, ge=0, le=16)
     audio_channels: int | None = Field(default=1, ge=1, le=16)

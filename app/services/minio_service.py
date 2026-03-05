@@ -127,6 +127,7 @@ class MinioService:
         response = self.s3_client.create_multipart_upload(
             Bucket=bucket,
             Key=key,
+            ChecksumAlgorithm="SHA256",
         )
         upload_id = response["UploadId"]
         logger.debug(f"Created multipart upload: {bucket}/{key} -> {upload_id}")
@@ -160,6 +161,7 @@ class MinioService:
                 "Key": key,
                 "UploadId": upload_id,
                 "PartNumber": part_number,
+                "ChecksumAlgorithm": "SHA256",
             },
             ExpiresIn=expires_in,
         )

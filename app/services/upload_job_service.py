@@ -10,6 +10,7 @@
 
 import logging
 from datetime import UTC, datetime, timedelta
+from uuid import uuid4
 
 from botocore.exceptions import ClientError
 from sqlalchemy.orm import Session
@@ -225,6 +226,7 @@ class UploadJobService:
             audio = audio_map[object_key]
 
             task = UploadTask(
+                id=str(uuid4()),
                 job_id=job.id,
                 audio_id=audio.id,
                 file_name=file_info.name,
@@ -539,7 +541,14 @@ class UploadJobService:
                 bucket=bucket,
                 key=task.object_key,
                 upload_id=task.upload_id,
-                parts=[{"PartNumber": p.part_number, "ETag": p.etag} for p in parts],
+                parts=[
+                    {
+                        "PartNumber": p.part_number,
+                        "ETag": p.etag,
+                        **({"ChecksumSHA256": p.checksum_sha256} if p.checksum_sha256 else {}),
+                    }
+                    for p in parts
+                ],
             )
         except ClientError as e:
             logger.error(
@@ -573,7 +582,7 @@ class UploadJobService:
             if wav_info.is_valid:
                 audio.fs = wav_info.sample_rate
                 audio.audio_channels = wav_info.num_channels
-                audio.record_duration = wav_info.duration_seconds
+                audio.record_duration = int(wav_info.duration_seconds)
 
                 warnings = []
                 deployment = task.job.deployment
