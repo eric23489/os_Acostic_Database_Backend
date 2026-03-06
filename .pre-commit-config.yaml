@@ -9,3 +9,11 @@ repos:
         args: [ --fix ]
       # Run the formatter.
       - id: ruff-format
+  - repo: local
+    hooks:
+      - id: check-error-list-sync
+        name: Validate error-list.md sync with exceptions.py
+        entry: python scripts/check_error_list_sync.py
+        language: python
+        pass_filenames: false
+        files: ^(app/core/exceptions\.py|docs/error-list\.md)$

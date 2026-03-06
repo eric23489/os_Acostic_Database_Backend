@@ -220,7 +220,7 @@ RECORDER_IDENTIFIER_DUPLICATE = AppException(
 )
 RECORDER_HAS_DEPLOYMENTS = AppException(
     error_code="RECORDER_HAS_DEPLOYMENTS",
-    message="Cannot delete recorder: deployments reference this recorder. Delete deployments first.",
+    message="Cannot delete recorder: deployments reference this recorder. Delete deployments first.",  # noqa: E501
     http_status=status.HTTP_400_BAD_REQUEST,
 )
 RECORDER_IDENTIFIER_COLLISION = AppException(
@@ -247,7 +247,7 @@ USER_EMAIL_COLLISION = AppException(
 )
 USER_PASSWORD_TOO_SHORT = AppException(
     error_code="USER_PASSWORD_TOO_SHORT",
-    message="Password does not meet the security requirements",
+    message="Password must be at least 8 characters",
     http_status=status.HTTP_400_BAD_REQUEST,
 )
 

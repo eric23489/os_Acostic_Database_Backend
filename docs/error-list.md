@@ -128,7 +128,7 @@ assert exc_info.value.error_code == "FOO_BAR_ERROR"
 | `AUDIO_OBJECT_KEY_COLLISION` | 400 | Active audio with this object_key already exists. Cannot restore. |
 | `AUDIO_UPLOAD_NOT_COMPLETED` | 400 | Audio upload not completed |
 | `AUDIO_CONCURRENT_CONFLICT` | 409 | Concurrent write conflict on object_key. Please retry. |
-| `MINIO_DELETE_FAILED` | 502 | Failed to delete file from storage. Database record was not deleted. |
+| `MINIO_DELETE_FAILED` | 502 | Failed to delete resource. Please try again or contact administrator. |
 | `AUDIO_DB_COMMIT_FAILED` | 500 | Failed to save audio records. Please retry. |
 
 ---
@@ -151,6 +151,7 @@ assert exc_info.value.error_code == "FOO_BAR_ERROR"
 | error_code | HTTP Status | message |
 |------------|-------------|---------|
 | `RECORDER_NOT_FOUND` | 404 | Recorder not found |
+| `RECORDER_IDENTIFIER_DUPLICATE` | 400 | Active recorder with this brand/model/sn already exists. |
 | `RECORDER_IDENTIFIER_RESERVED` | 400 | Identifier reserved by deleted recorder. Hard delete to release. |
 | `RECORDER_IDENTIFIER_COLLISION` | 400 | Active recorder with this brand/model/sn already exists. Cannot restore. |
 | `RECORDER_HAS_DEPLOYMENTS` | 400 | Cannot delete recorder: deployments reference this recorder. Delete deployments first. |
@@ -190,6 +191,16 @@ assert exc_info.value.error_code == "FOO_BAR_ERROR"
 | `OAUTH_ACCOUNT_IN_USE` | 400 | This Google account is already linked to another user |
 | `OAUTH_NOT_LINKED` | 400 | Account is not linked to Google |
 | `OAUTH_PASSWORD_REQUIRED` | 400 | Please set a password before unlinking Google account |
+| `OAUTH_USERINFO_FETCH_FAILED` | 502 | Failed to fetch user info from Google. |
+
+---
+
+## 11. 系統 / 查詢 (System / Query)
+
+| error_code | HTTP Status | message |
+|------------|-------------|----------|
+| `QUERY_SORT_INVALID` | 400 | Invalid sort field |
+| `INTERNAL_ERROR` | 500 | An unexpected error occurred |
 
 ---
 
@@ -197,11 +208,11 @@ assert exc_info.value.error_code == "FOO_BAR_ERROR"
 
 | HTTP Status | 數量 | 說明 |
 |-------------|------|------|
-| 400 Bad Request | 21 | 驗證失敗、重複、衝突 |
+| 400 Bad Request | 23 | 驗證失敗、重複、衝突 |
 | 401 Unauthorized | 3 | 認證失敗 |
 | 403 Forbidden | 3 | 權限不足 |
 | 404 Not Found | 8 | 資源不存在 |
 | 409 Conflict | 1 | 並發衝突 |
-| 500 Server Error | 3 | 伺服器錯誤 |
-| 502 Bad Gateway | 2 | 外部儲存錯誤 |
-| **合計** | **41** | 41 AppException + 0 HTTPException |
+| 500 Server Error | 4 | 伺服器錯誤 |
+| 502 Bad Gateway | 3 | 外部儲存錯誤 |
+| **合計** | **45** | 45 AppException + 0 HTTPException |

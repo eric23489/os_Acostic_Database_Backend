@@ -1,1 +1,32 @@
 scripts/*.wav
+tests/
+docs/
+
+# 環境變數（含機敏資料，不進入 image）
+.env
+
+# Git
+.git/
+.github/
+
+# Python 虛擬環境
+.venv/
+
+# Python 快取
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.ruff_cache/
+
+# IDE / 開發工具
+.vscode/
+.continue/
+.claude/
+.pre-commit-config.yaml
+
+# 開發專用設定
+pytest.ini
+pyproject.toml
+CLAUDE.md
+README.md

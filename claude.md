@@ -131,6 +131,15 @@ alembic.ini | entrypoint.sh
 - **別名**: `pandas as pd`, `numpy as np`, `scipy as sp`, `scipy.signal as ss`。
 - **TODO**: `# TODO (Name): 說明`。
 
+### 錯誤處理 (Error Handling)
+- 錯誤統一使用 `AppException`，定義在 `app/core/exceptions.py`
+- **新增 AppException 時，必須先執行 `Read docs/error-list.md`，確認無重複後再按 SOP 操作：**
+  1. 在 `exceptions.py` 新增常數
+  2. 在 service 層 raise 該常數
+  3. 更新 `docs/error-list.md` 對應表格
+- 命名規則：`模組_具體狀況`（如 `PROJECT_NOT_FOUND`、`AUDIO_OBJECT_KEY_DUPLICATE`）
+- 禁止在 router 層寫 try-catch，exception 由全域 handler 處理
+
 ## 5. 常用指令 (Common Commands)
 - 啟動開發環境: `docker-compose up -d`
 - 執行 Migration: `alembic upgrade head`
@@ -144,16 +153,17 @@ alembic.ini | entrypoint.sh
 - `POSTGRES_IP_ADDRESS`, `POSTGRES_PORT`, `POSTGRES_PORT_OUT`
 - `SECRET_KEY` (JWT)
 - `APP_PORT`, `APP_PORT_OUT`
-- `MINIO_IP_ADDRESS`, `MINIO_PORT`, `MINIO_PORT_OUT`, `MINIO_CONSOLE_PORT`
+- `MINIO_IP_ADDRESS`, `MINIO_PORT`, `MINIO_PORT_OUT`, `MINIO_CONSOLE_PORT`, `MINIO_EXTERNAL_URL`（選填，presigned URL 外部存取用）
 - `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`
 
 ## 7. 開發狀態
 - 目前版本: Phase 3 完成
-- 開發歷程: `.claude/docs/changelog.md`,`todo.md`
+- 開發歷程: `.claude/docs/changelog.md`, `.claude/docs/todo.md`
 
 ## 8. 設計模式 (Design Patterns)
-- 開始實作前更新相`.claude.md/plans`內對應的plan，若沒有則建立，plan要有修改,新增的檔案列表
-- 完成後更新`changelog.md`,`todo.md`
+- 開始實作前更新`.claude/plans`內對應的 plan，若沒有則建立，plan 要有修改、新增的檔案列表
+- 完成後更新`.claude/docs/changelog.md`, `.claude/docs/todo.md`
+- 新增或修改 AppException 時，同步更新 `docs/error-list.md`（SOP 詳見該文件開頭）
 
 ### 軟刪除 (Soft Delete)
 所有主要 Model 使用軟刪除模式：
