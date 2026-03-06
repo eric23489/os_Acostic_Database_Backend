@@ -1,11 +1,11 @@
 """Unit tests for PasswordResetService."""
 
-import pytest
-from datetime import datetime, timedelta, UTC
+from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock, patch
 
-from app.core.exceptions import AppException
+import pytest
 
+from app.core.exceptions import AppException
 from app.services.password_reset_service import PasswordResetService
 
 
@@ -64,7 +64,10 @@ class TestInitiatePasswordReset:
         assert has_google is False
 
     def test_initiate_password_reset_inactive_user(self):
-        """Should silently return None for inactive user (prevents account enumeration)."""
+        """Should silently return None for inactive user.
+
+        Prevents account enumeration.
+        """
         mock_db = MagicMock()
         mock_user = MagicMock()
         mock_user.is_active = False
@@ -111,11 +114,9 @@ class TestResetPassword:
 
         service = PasswordResetService(mock_db)
 
-        with patch(
-            "app.services.password_reset_service.hash_password"
-        ) as mock_hash:
+        with patch("app.services.password_reset_service.hash_password") as mock_hash:
             mock_hash.return_value = "new_hashed_password"
-            result = service.reset_password("valid_token", "newpassword123")
+            service.reset_password("valid_token", "newpassword123")
 
         assert mock_user.password_hash == "new_hashed_password"
         assert mock_user.reset_token is None
@@ -177,7 +178,7 @@ class TestResetPassword:
             service.reset_password("valid_token", "short")
 
         assert exc_info.value.http_status == 400
-        assert "security requirements" in exc_info.value.message
+        assert "at least 8 characters" in exc_info.value.message
 
 
 class TestSendResetEmail:

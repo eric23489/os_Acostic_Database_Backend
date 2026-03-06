@@ -1,7 +1,14 @@
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_serializer, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    EmailStr,
+    Field,
+    field_serializer,
+    model_validator,
+)
 
 from app.enums.enums import UserRole
 
@@ -43,6 +50,7 @@ class UserResponse(UserBase):
         """Auto-compute has_password from password_hash."""
         if isinstance(data, dict):
             data["has_password"] = data.get("password_hash") is not None
+            return data
         elif hasattr(data, "password_hash"):
             return {
                 "id": data.id,

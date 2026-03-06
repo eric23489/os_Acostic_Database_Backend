@@ -1,14 +1,12 @@
 """Unit tests for UserService."""
 
-import pytest
-from datetime import datetime, UTC
 from unittest.mock import MagicMock, patch
 
-from app.core.exceptions import AppException
+import pytest
 
-from app.services.user_service import UserService
+from app.core.exceptions import AppException
 from app.schemas.user import UserCreate, UserUpdate
-from app.enums.enums import UserRole
+from app.services.user_service import UserService
 
 
 class TestUserServiceCreateUser:
@@ -29,7 +27,7 @@ class TestUserServiceCreateUser:
                 password="password123",
                 full_name="Test User",
             )
-            result = service.create_user(user_data)
+            service.create_user(user_data)
 
         mock_db.add.assert_called_once()
         mock_db.commit.assert_called_once()
@@ -39,7 +37,9 @@ class TestUserServiceCreateUser:
         """Should raise error when email already exists."""
         mock_db = MagicMock()
         existing_user = MagicMock()
-        mock_db.query.return_value.filter.return_value.first.return_value = existing_user
+        mock_db.query.return_value.filter.return_value.first.return_value = (
+            existing_user
+        )
 
         service = UserService(mock_db)
         user_data = UserCreate(
@@ -187,7 +187,7 @@ class TestUserServiceUpdateUser:
         with patch("app.services.user_service.hash_password") as mock_hash:
             mock_hash.return_value = "new_hashed_password"
             update_data = UserUpdate(password="newpassword123")
-            result = service.update_user(1, update_data)
+            service.update_user(1, update_data)
 
         mock_hash.assert_called_once_with("newpassword123")
         assert mock_user.password_hash == "new_hashed_password"
@@ -204,7 +204,7 @@ class TestUserServiceDeleteUser:
         mock_db.query.return_value.filter.return_value.first.return_value = mock_user
 
         service = UserService(mock_db)
-        result = service.delete_user(1, deleted_by_id=2)
+        service.delete_user(1, deleted_by_id=2)
 
         assert mock_user.is_deleted is True
         assert mock_user.deleted_by == 2
@@ -241,7 +241,7 @@ class TestUserServiceRestoreUser:
         ]
 
         service = UserService(mock_db)
-        result = service.restore_user(1)
+        service.restore_user(1)
 
         assert mock_user.is_deleted is False
         assert mock_user.deleted_at is None
@@ -294,7 +294,7 @@ class TestUserServiceSetPassword:
 
         with patch("app.services.user_service.hash_password") as mock_hash:
             mock_hash.return_value = "hashed_new_password"
-            result = service.set_password(1, "newpassword123")
+            service.set_password(1, "newpassword123")
 
         assert mock_user.password_hash == "hashed_new_password"
         mock_db.commit.assert_called_once()
@@ -323,4 +323,4 @@ class TestUserServiceSetPassword:
             service.set_password(1, "short")
 
         assert exc_info.value.http_status == 400
-        assert "security requirements" in exc_info.value.message
+        assert "at least 8 characters" in exc_info.value.message

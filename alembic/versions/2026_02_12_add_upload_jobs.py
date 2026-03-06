@@ -36,7 +36,8 @@ def upgrade() -> None:
         "audio_info", sa.Column("upload_id", sa.String(100), nullable=True)
     )
     op.add_column(
-        "audio_info", sa.Column("upload_progress", sa.Integer(), default=0, nullable=True)
+        "audio_info",
+        sa.Column("upload_progress", sa.Integer(), server_default=sa.text("0"), nullable=True),
     )
     op.add_column(
         "audio_info", sa.Column("upload_total_parts", sa.Integer(), nullable=True)
