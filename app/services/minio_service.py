@@ -8,7 +8,7 @@ import logging
 
 from botocore.exceptions import ClientError
 
-from app.core.minio import get_s3_client
+from app.core.minio import get_s3_client, get_s3_presigned_client
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +18,7 @@ class MinioService:
 
     def __init__(self):
         self.s3_client = get_s3_client()
+        self.s3_presigned_client = get_s3_presigned_client()
 
     # =========================================================================
     # Bucket Operations
@@ -76,7 +77,7 @@ class MinioService:
         Returns:
             presigned URL
         """
-        return self.s3_client.generate_presigned_url(
+        return self.s3_presigned_client.generate_presigned_url(
             ClientMethod=method,
             Params={"Bucket": bucket, "Key": key},
             ExpiresIn=expires_in,
@@ -154,7 +155,7 @@ class MinioService:
         Returns:
             presigned URL
         """
-        return self.s3_client.generate_presigned_url(
+        return self.s3_presigned_client.generate_presigned_url(
             ClientMethod="upload_part",
             Params={
                 "Bucket": bucket,

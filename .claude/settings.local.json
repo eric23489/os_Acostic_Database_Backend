@@ -94,7 +94,10 @@
       "Skill(code-review:code-review)",
       "Bash(gh repo:*)",
       "Bash(.venv/Scripts/ruff check:*)",
-      "Bash(.venv/Scripts/python.exe:*)"
+      "Bash(.venv/Scripts/python.exe:*)",
+      "Bash(cmd.exe:*)",
+      "Bash(docker info:*)",
+      "Bash(echo:*)"
     ]
   }
 }

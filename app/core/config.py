@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     # MinIO / AWS settings
     minio_ip_address: str | None = None
     minio_port: int = 9000
+    minio_external_url: str | None = None
     aws_access_key_id: str | None = None
     aws_secret_access_key: str | None = None
     minio_bucket_name: str = "data"
