@@ -55,7 +55,7 @@ class AudioInfo(Base):
 
     # Upload status tracking
     upload_status = Column(
-        String(20), default=UploadStatus.COMPLETED, server_default="'completed'"
+        String(20), default=UploadStatus.COMPLETED, server_default=text("'completed'")
     )
     upload_id = Column(String(255), nullable=True)  # Multipart upload_id
     upload_progress = Column(Integer, default=0)  # 已完成的 parts 数

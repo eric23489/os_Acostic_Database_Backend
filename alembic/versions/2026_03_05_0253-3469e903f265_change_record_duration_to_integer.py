@@ -29,6 +29,7 @@ def upgrade() -> None:
         existing_type=sa.DOUBLE_PRECISION(precision=53),
         type_=sa.Integer(),
         existing_nullable=True,
+        postgresql_using="record_duration::integer",
     )
     # ### end Alembic commands ###
 

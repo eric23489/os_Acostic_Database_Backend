@@ -7,7 +7,7 @@
 """
 
 import logging
-from datetime import datetime, timedelta, UTC
+from datetime import UTC, datetime, timedelta
 
 from celery import shared_task
 from celery.schedules import crontab
@@ -57,7 +57,7 @@ def finalize_completed_uploads(self, job_id: str):
     except Exception as e:
         db.rollback()
         logger.error(f"Error finalizing job: {e}")
-        raise self.retry(exc=e)
+        raise self.retry(exc=e) from e
     finally:
         db.close()
 
@@ -100,7 +100,10 @@ def cleanup_abandoned_audio_records():
                 except Exception as e:
                     logger.warning(f"Failed to abort multipart: {e}")
 
-            # 2. 硬删除记录 (不是软删除，因为从未完成)
+            # 2. 先刪 UploadTask（FK 參照 AudioInfo），再刪 AudioInfo
+            db.query(UploadTask).filter(UploadTask.audio_id == record.id).delete(
+                synchronize_session=False
+            )
             db.delete(record)
             cleaned_count += 1
 
@@ -148,7 +151,9 @@ def cleanup_expired_jobs():
                             upload_id=task.upload_id,
                         )
                     except Exception as e:
-                        logger.warning(f"Failed to abort multipart for task {task.id}: {e}")
+                        logger.warning(
+                            f"Failed to abort multipart for task {task.id}: {e}"
+                        )
 
             job.status = JobStatus.FAILED
             job.completed_at = datetime.now(UTC)
