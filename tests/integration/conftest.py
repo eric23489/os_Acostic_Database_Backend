@@ -15,7 +15,7 @@ from app.models.project import ProjectInfo
 from app.models.recorder import RecorderInfo
 from app.models.user import UserInfo
 
-# Use a separate database for integration tests
+# Integration tests use the same database as the application (configured via settings)
 TEST_DATABASE_URL = settings.get_database_url()
 
 engine = create_engine(TEST_DATABASE_URL)
@@ -41,8 +41,8 @@ def db_session():
     session.close()
     transaction.rollback()
     connection.close()
-    # Clear the dependency override
-    app.dependency_overrides.clear()
+    # Remove only the get_db override; other overrides are unaffected
+    app.dependency_overrides.pop(get_db, None)
 
 
 @pytest.fixture(scope="module")

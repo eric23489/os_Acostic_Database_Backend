@@ -6,18 +6,14 @@ Celery 应用配置。
 - 上传任务状态检查
 """
 
-import os
-
 from celery import Celery
 
-# 从环境变量获取配置，或使用默认值
-CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", "redis://redis:6379/0")
-CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", "redis://redis:6379/0")
+from app.core.config import settings
 
 celery_app = Celery(
     "audio_tasks",
-    broker=CELERY_BROKER_URL,
-    backend=CELERY_RESULT_BACKEND,
+    broker=settings.celery_broker_url,
+    backend=settings.celery_result_backend,
 )
 
 celery_app.conf.update(
