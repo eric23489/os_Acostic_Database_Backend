@@ -10,7 +10,8 @@ exclude = [
     ".tox/",
     "_build/",
     "buck-out/",
-    "alembic/"
+    "alembic/",
+    "scripts/"
 ]
 
 # 告訴 Ruff 你的程式碼是為 Python 3.12 編寫的 (相容 3.14)

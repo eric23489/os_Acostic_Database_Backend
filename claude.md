@@ -185,14 +185,26 @@ Index("uq_xxx_active", "field", unique=True, postgresql_where=(is_deleted.is_(Fa
 - 軟刪除名稱保留，直到 Hard Delete 釋放
 - 詳細範本參考：`docs/delete-patterns.md`
 
-### 多角色討論模式
-手動觸發不同角色的 Task Agent 進行深度討論：
--  **提問者**: 使用者視角、邊界情況、失敗情境
--  **架構師**: 一致性、可靠性、方案比較
--  **後端工程師**: 程式碼結構、錯誤處理
--  **測試工程師**: 測試策略、覆蓋率、Mock 設計
+## 9. CI/CD 規範
 
-## 9. Claude回覆內容
+### CI 環境
+- Python 版本：3.14（與本地開發環境一致）
+- 執行環境：ubuntu-latest
+
+### 必須通過才能 merge
+- `ruff check app/ tests/`（linting）
+- `ruff format --check app/ tests/`（formatting）
+- `pytest --ignore=tests/integration`（單元測試）
+
+### 格式工具一致性
+- CI 與本地 pre-commit hook 統一使用 Ruff
+- 禁止在 CI workflow 引入 Black、isort、flake8
+
+### 安全掃描
+- `safety check` 失敗**阻擋 merge**
+- 發現安全漏洞需修復依賴版本或另開 issue 追蹤後再 merge
+
+## 10. Claude回覆內容
 - 中文
 - 不使用emoji
 

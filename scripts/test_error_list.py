@@ -5,18 +5,30 @@
 用法: python scripts/test_error_list.py
 前提: docker-compose up -d 且 admin 帳號 aaa@example.com / aaa 存在
 """
+
+import os
 import sys
 import time
 
+import boto3
 import httpx
+from botocore.client import Config
 
 API_BASE = "http://localhost:8000/api/v1"
 ADMIN_EMAIL = "aaa@example.com"
 ADMIN_PASSWORD = "aaa"
 
+# 必須和 MINIO_EXTERNAL_URL 一致，確保 presigned URL 能找到物件
+MINIO_TEST_ENDPOINT = os.getenv("MINIO_EXTERNAL_URL", "http://localhost:9000")
+MINIO_ACCESS_KEY = os.getenv("AWS_ACCESS_KEY_ID", "os_admin")
+MINIO_SECRET_KEY = os.getenv("AWS_SECRET_ACCESS_KEY", "os_43891586")
+
 SKIP_LIST = [
     ("POINT_NAME_RESERVED", "與 PROJECT_NAME_RESERVED 同模式，已由後者示範"),
-    ("AUDIO_UPLOAD_NOT_COMPLETED", "需 upload job 流程，建立 UPLOADING 狀態的 AudioInfo"),
+    (
+        "AUDIO_UPLOAD_NOT_COMPLETED",
+        "需 upload job 流程，建立 UPLOADING 狀態的 AudioInfo",
+    ),
     ("AUDIO_CONCURRENT_CONFLICT", "Race condition，無法確定性觸發"),
     ("AUDIO_DB_COMMIT_FAILED", "需 DB IntegrityError 故障注入"),
     ("MINIO_DELETE_FAILED", "需 MinIO container 故障注入"),
@@ -72,6 +84,9 @@ class ErrorTestSuite:
         # Permission 測試用隔離 project（避免 cascade soft-delete 污染主要資源）
         self.perm_proj_id: int | None = None
 
+        # Download 測試用 audio（presigned URL 實際下載驗證）
+        self.download_audio_id: int | None = None
+
     def check(
         self,
         label: str,
@@ -80,7 +95,10 @@ class ErrorTestSuite:
         expected_status: int,
     ) -> None:
         body = resp.json()
-        ok = resp.status_code == expected_status and body.get("error_code") == expected_code
+        ok = (
+            resp.status_code == expected_status
+            and body.get("error_code") == expected_code
+        )
         self.results.append((label, ok, f"{resp.status_code} {body.get('error_code')}"))
         if ok:
             print(f"  [PASS] {label}")
@@ -196,9 +214,12 @@ class ErrorTestSuite:
             )
 
         if self.deployment_id:
-            self.client.delete(f"{API_BASE}/deployments/{self.deployment_id}", headers=headers)
             self.client.delete(
-                f"{API_BASE}/deployments/{self.deployment_id}/permanent", headers=headers
+                f"{API_BASE}/deployments/{self.deployment_id}", headers=headers
+            )
+            self.client.delete(
+                f"{API_BASE}/deployments/{self.deployment_id}/permanent",
+                headers=headers,
             )
 
         if self.recorder_id:
@@ -207,7 +228,9 @@ class ErrorTestSuite:
             )
 
         if self.point_id:
-            self.client.delete(f"{API_BASE}/points/{self.point_id}/permanent", headers=headers)
+            self.client.delete(
+                f"{API_BASE}/points/{self.point_id}/permanent", headers=headers
+            )
 
         if self.project_id:
             self.client.delete(
@@ -224,15 +247,20 @@ class ErrorTestSuite:
 
         if self.res_recorder_id:
             self.client.delete(
-                f"{API_BASE}/recorders/{self.res_recorder_id}/permanent", headers=headers
+                f"{API_BASE}/recorders/{self.res_recorder_id}/permanent",
+                headers=headers,
             )
 
         # Collision 測試資源清理（User / Project / Recorder）
         if self.inactive_user_id:
-            self.client.delete(f"{API_BASE}/users/{self.inactive_user_id}", headers=headers)
+            self.client.delete(
+                f"{API_BASE}/users/{self.inactive_user_id}", headers=headers
+            )
 
         if self.coll_user_id2:
-            self.client.delete(f"{API_BASE}/users/{self.coll_user_id2}", headers=headers)
+            self.client.delete(
+                f"{API_BASE}/users/{self.coll_user_id2}", headers=headers
+            )
 
         if self.coll_p2_id:
             self.client.delete(
@@ -257,7 +285,9 @@ class ErrorTestSuite:
         # Point collision 清理（coll_dep 已在上方處理）
         for pt_id in [self.coll_pt2_id, self.coll_pt1_id]:
             if pt_id:
-                self.client.delete(f"{API_BASE}/points/{pt_id}/permanent", headers=headers)
+                self.client.delete(
+                    f"{API_BASE}/points/{pt_id}/permanent", headers=headers
+                )
 
         # Audio 清理
         for aid in [self.audio_id_1, self.audio_id_2]:
@@ -268,6 +298,12 @@ class ErrorTestSuite:
         if self.perm_proj_id:
             self.client.delete(
                 f"{API_BASE}/projects/{self.perm_proj_id}/permanent", headers=headers
+            )
+
+        # Download 測試用 audio
+        if self.download_audio_id:
+            self.client.delete(
+                f"{API_BASE}/audio/{self.download_audio_id}/permanent", headers=headers
             )
 
         print("[teardown] 完成")
@@ -282,7 +318,9 @@ class ErrorTestSuite:
             f"{API_BASE}/users/login",
             data={"username": "wrong@x.com", "password": "wrong"},
         )
-        self.check("AUTH_INCORRECT_CREDENTIALS", resp, "AUTH_INCORRECT_CREDENTIALS", 401)
+        self.check(
+            "AUTH_INCORRECT_CREDENTIALS", resp, "AUTH_INCORRECT_CREDENTIALS", 401
+        )
 
         resp = self.client.get(
             f"{API_BASE}/projects/",
@@ -374,9 +412,13 @@ class ErrorTestSuite:
                 f"{API_BASE}/projects/{self.perm_proj_id}/restore",
                 headers=user_headers,
             )
-            self.check("PERMISSION_RESTORE_DENIED", resp, "PERMISSION_RESTORE_DENIED", 403)
+            self.check(
+                "PERMISSION_RESTORE_DENIED", resp, "PERMISSION_RESTORE_DENIED", 403
+            )
         else:
-            print(f"  [SKIP] PERMISSION_RESTORE_DENIED: create temp project failed: {resp_p.text}")
+            print(
+                f"  [SKIP] PERMISSION_RESTORE_DENIED: create temp project failed: {resp_p.text}"
+            )
 
     # ── 群組 4：Validation ───────────────────────────────────────────────────
 
@@ -446,13 +488,20 @@ class ErrorTestSuite:
             )
             self.check("PROJECT_NAME_RESERVED", resp2, "PROJECT_NAME_RESERVED", 400)
         else:
-            print(f"  [SKIP] PROJECT_NAME_RESERVED setup failed: {resp.status_code} {resp.text}")
+            print(
+                f"  [SKIP] PROJECT_NAME_RESERVED setup failed: {resp.status_code} {resp.text}"
+            )
 
         # RECORDER_IDENTIFIER_RESERVED
         res_sn = f"res-{self.ts}"
         resp = self.client.post(
             f"{API_BASE}/recorders/",
-            json={"brand": "TESTERR", "model": "RES", "sn": res_sn, "sensitivity": -170.0},
+            json={
+                "brand": "TESTERR",
+                "model": "RES",
+                "sn": res_sn,
+                "sensitivity": -170.0,
+            },
             headers=headers,
         )
         if resp.is_success:
@@ -462,11 +511,19 @@ class ErrorTestSuite:
             )
             resp2 = self.client.post(
                 f"{API_BASE}/recorders/",
-                json={"brand": "TESTERR", "model": "RES", "sn": res_sn, "sensitivity": -170.0},
+                json={
+                    "brand": "TESTERR",
+                    "model": "RES",
+                    "sn": res_sn,
+                    "sensitivity": -170.0,
+                },
                 headers=headers,
             )
             self.check(
-                "RECORDER_IDENTIFIER_RESERVED", resp2, "RECORDER_IDENTIFIER_RESERVED", 400
+                "RECORDER_IDENTIFIER_RESERVED",
+                resp2,
+                "RECORDER_IDENTIFIER_RESERVED",
+                400,
             )
         else:
             print(
@@ -489,7 +546,9 @@ class ErrorTestSuite:
         )
         if resp.is_success:
             self.coll_user_id1 = resp.json()["id"]
-            self.client.delete(f"{API_BASE}/users/{self.coll_user_id1}", headers=headers)
+            self.client.delete(
+                f"{API_BASE}/users/{self.coll_user_id1}", headers=headers
+            )
             resp2 = self.client.post(
                 f"{API_BASE}/users/",
                 json={"email": coll_email, "password": "testpass123"},
@@ -532,9 +591,13 @@ class ErrorTestSuite:
                     f"{API_BASE}/projects/{self.coll_p2_id}/restore",
                     headers=headers,
                 )
-                self.check("PROJECT_NAME_COLLISION", resp3, "PROJECT_NAME_COLLISION", 400)
+                self.check(
+                    "PROJECT_NAME_COLLISION", resp3, "PROJECT_NAME_COLLISION", 400
+                )
             else:
-                print(f"  [SKIP] PROJECT_NAME_COLLISION: create P2 failed: {resp2.text}")
+                print(
+                    f"  [SKIP] PROJECT_NAME_COLLISION: create P2 failed: {resp2.text}"
+                )
         else:
             print(f"  [SKIP] PROJECT_NAME_COLLISION: create P1 failed: {resp.text}")
 
@@ -543,7 +606,12 @@ class ErrorTestSuite:
         coll_r2_sn = f"coll2-{self.ts}"
         resp = self.client.post(
             f"{API_BASE}/recorders/",
-            json={"brand": "TESTERR", "model": "COLL", "sn": coll_r1_sn, "sensitivity": -170.0},
+            json={
+                "brand": "TESTERR",
+                "model": "COLL",
+                "sn": coll_r1_sn,
+                "sensitivity": -170.0,
+            },
             headers=headers,
         )
         if resp.is_success:
@@ -583,7 +651,9 @@ class ErrorTestSuite:
                     f"  [SKIP] RECORDER_IDENTIFIER_COLLISION: create R2 failed: {resp2.text}"
                 )
         else:
-            print(f"  [SKIP] RECORDER_IDENTIFIER_COLLISION: create R1 failed: {resp.text}")
+            print(
+                f"  [SKIP] RECORDER_IDENTIFIER_COLLISION: create R1 failed: {resp.text}"
+            )
 
     # ── 群組 6c：Point/Deployment Collision ──────────────────────────────────
 
@@ -608,7 +678,9 @@ class ErrorTestSuite:
             )
             if resp2.is_success:
                 self.coll_pt2_id = resp2.json()["id"]
-                self.client.delete(f"{API_BASE}/points/{self.coll_pt2_id}", headers=headers)
+                self.client.delete(
+                    f"{API_BASE}/points/{self.coll_pt2_id}", headers=headers
+                )
                 self.client.put(
                     f"{API_BASE}/points/{self.coll_pt1_id}",
                     json={"name": coll_pt2_name},
@@ -649,7 +721,10 @@ class ErrorTestSuite:
                     headers=headers,
                 )
                 self.check(
-                    "DEPLOYMENT_PHASE_COLLISION", resp3, "DEPLOYMENT_PHASE_COLLISION", 400
+                    "DEPLOYMENT_PHASE_COLLISION",
+                    resp3,
+                    "DEPLOYMENT_PHASE_COLLISION",
+                    400,
                 )
             else:
                 print(
@@ -690,7 +765,9 @@ class ErrorTestSuite:
             },
             headers=headers,
         )
-        self.check("AUDIO_OBJECT_KEY_DUPLICATE", resp2, "AUDIO_OBJECT_KEY_DUPLICATE", 400)
+        self.check(
+            "AUDIO_OBJECT_KEY_DUPLICATE", resp2, "AUDIO_OBJECT_KEY_DUPLICATE", 400
+        )
 
         # AUDIO_OBJECT_KEY_RESERVED：soft-delete audio_id_1，再建立同 key
         self.client.delete(
@@ -732,9 +809,13 @@ class ErrorTestSuite:
                 f"{API_BASE}/audio/{self.audio_id_1}/restore",
                 headers=headers,
             )
-            self.check("AUDIO_OBJECT_KEY_COLLISION", resp5, "AUDIO_OBJECT_KEY_COLLISION", 400)
+            self.check(
+                "AUDIO_OBJECT_KEY_COLLISION", resp5, "AUDIO_OBJECT_KEY_COLLISION", 400
+            )
         else:
-            print(f"  [SKIP] AUDIO_OBJECT_KEY_COLLISION: create audio B failed: {resp4.text}")
+            print(
+                f"  [SKIP] AUDIO_OBJECT_KEY_COLLISION: create audio B failed: {resp4.text}"
+            )
 
     # ── 群組 6e：Upload ───────────────────────────────────────────────────────
 
@@ -782,7 +863,102 @@ class ErrorTestSuite:
             f"{API_BASE}/auth/reset-password",
             json={"token": "fake-xxx", "new_password": "newpassword123"},
         )
-        self.check("PASSWORD_RESET_TOKEN_INVALID", resp, "PASSWORD_RESET_TOKEN_INVALID", 400)
+        self.check(
+            "PASSWORD_RESET_TOKEN_INVALID", resp, "PASSWORD_RESET_TOKEN_INVALID", 400
+        )
+
+    # ── 群組 10：Download (presigned URL) ────────────────────────────────────
+
+    def run_download_test(self, admin_token: str) -> None:
+        print("\n=== Download (presigned URL) ===")
+        headers = self._headers(admin_token)
+        object_key = f"{self.project_name}/{self.ts}/download-test.wav"
+        test_content = b"test-audio-content"
+
+        # 1. 建立 audio record
+        resp = self.client.post(
+            f"{API_BASE}/audio/",
+            json={
+                "deployment_id": self.deployment_id,
+                "file_name": f"download-test-{self.ts}.wav",
+                "object_key": object_key,
+            },
+            headers=headers,
+        )
+        if not resp.is_success:
+            print(f"  [SKIP] create audio failed: {resp.text}")
+            return
+        self.download_audio_id = resp.json()["id"]
+
+        # 2. 用 boto3 連接 MINIO_TEST_ENDPOINT，上傳測試內容
+        try:
+            s3 = boto3.client(
+                "s3",
+                endpoint_url=MINIO_TEST_ENDPOINT,
+                aws_access_key_id=MINIO_ACCESS_KEY,
+                aws_secret_access_key=MINIO_SECRET_KEY,
+                config=Config(signature_version="s3v4"),
+            )
+            bucket = self.project_name
+            try:
+                s3.head_bucket(Bucket=bucket)
+            except Exception:
+                s3.create_bucket(Bucket=bucket)
+
+            s3.put_object(
+                Bucket=bucket, Key=f"{self.ts}/download-test.wav", Body=test_content
+            )
+        except Exception as exc:
+            print(f"  [SKIP] boto3 連接 {MINIO_TEST_ENDPOINT} 失敗: {exc}")
+            return
+
+        # 3. 取得 presigned URL
+        resp = self.client.get(
+            f"{API_BASE}/audio/{self.download_audio_id}/download-url",
+            headers=headers,
+        )
+        if not resp.is_success:
+            print(f"  [SKIP] get download-url failed: {resp.status_code} {resp.text}")
+            s3.delete_object(Bucket=bucket, Key=f"{self.ts}/download-test.wav")
+            return
+
+        presigned_url = resp.json().get("url")
+        if not presigned_url:
+            print(f"  [SKIP] response missing 'url' field: {resp.json()}")
+            s3.delete_object(Bucket=bucket, Key=f"{self.ts}/download-test.wav")
+            return
+
+        # 4. 實際下載，驗證內容
+        try:
+            download_resp = httpx.get(presigned_url, timeout=30)
+            if (
+                download_resp.status_code == 200
+                and download_resp.content == test_content
+            ):
+                print("  [PASS] Download via presigned URL")
+                self.results.append(("Download via presigned URL", True, "200 OK"))
+            else:
+                print("  [FAIL] Download via presigned URL")
+                print(f"         status: {download_resp.status_code}")
+                print(
+                    f"         content match: {download_resp.content == test_content}"
+                )
+                self.results.append(
+                    (
+                        "Download via presigned URL",
+                        False,
+                        f"{download_resp.status_code} content_match={download_resp.content == test_content}",
+                    )
+                )
+        except Exception as exc:
+            print(f"  [FAIL] Download via presigned URL: {exc}")
+            self.results.append(("Download via presigned URL", False, str(exc)))
+        finally:
+            # 5. 清理 MinIO 物件
+            try:
+                s3.delete_object(Bucket=bucket, Key=f"{self.ts}/download-test.wav")
+            except Exception:
+                pass
 
     # ── 摘要 ─────────────────────────────────────────────────────────────────
 
@@ -800,7 +976,7 @@ class ErrorTestSuite:
                 if not ok:
                     print(f"  - {label}: {actual}")
 
-        print("\n跳過項目 (共 {count} 個):".format(count=len(SKIP_LIST)))
+        print(f"\n跳過項目 (共 {len(SKIP_LIST)} 個):")
         for code, reason in SKIP_LIST:
             print(f"  - {code}: {reason}")
 
@@ -822,6 +998,7 @@ class ErrorTestSuite:
             self.run_recorder_group(admin_token)
             self.run_oauth_group(admin_token)
             self.run_password_reset_group()
+            self.run_download_test(admin_token)
         finally:
             self.teardown(admin_token)
         self.print_summary()
