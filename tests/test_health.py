@@ -19,7 +19,7 @@ def health_client():
 
 def test_health_all_ok(health_client):
     client, mock_db = health_client
-    with patch("app.api.v1.endpoints.api_health.get_s3_client") as mock_s3:
+    with patch("app.api.v1.endpoints.api_health.get_s3_health_client") as mock_s3:
         mock_s3.return_value.list_buckets.return_value = {}
         response = client.get("/health")
 
@@ -33,7 +33,7 @@ def test_health_all_ok(health_client):
 def test_health_db_failure(health_client):
     client, mock_db = health_client
     mock_db.execute.side_effect = Exception("connection refused")
-    with patch("app.api.v1.endpoints.api_health.get_s3_client") as mock_s3:
+    with patch("app.api.v1.endpoints.api_health.get_s3_health_client") as mock_s3:
         mock_s3.return_value.list_buckets.return_value = {}
         response = client.get("/health")
 
@@ -46,8 +46,10 @@ def test_health_db_failure(health_client):
 
 def test_health_minio_failure(health_client):
     client, mock_db = health_client
-    with patch("app.api.v1.endpoints.api_health.get_s3_client") as mock_s3:
-        mock_s3.return_value.list_buckets.side_effect = Exception("endpoint unreachable")
+    with patch("app.api.v1.endpoints.api_health.get_s3_health_client") as mock_s3:
+        mock_s3.return_value.list_buckets.side_effect = Exception(
+            "endpoint unreachable"
+        )
         response = client.get("/health")
 
     assert response.status_code == 503
@@ -60,7 +62,7 @@ def test_health_minio_failure(health_client):
 def test_health_both_failure(health_client):
     client, mock_db = health_client
     mock_db.execute.side_effect = Exception("db down")
-    with patch("app.api.v1.endpoints.api_health.get_s3_client") as mock_s3:
+    with patch("app.api.v1.endpoints.api_health.get_s3_health_client") as mock_s3:
         mock_s3.return_value.list_buckets.side_effect = Exception("minio down")
         response = client.get("/health")
 

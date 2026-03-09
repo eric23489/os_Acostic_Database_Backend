@@ -135,7 +135,7 @@ class TestUserServiceGetUsers:
         mock_db = MagicMock()
         mock_users = [MagicMock(), MagicMock()]
         mock_chain = mock_db.query.return_value.filter.return_value
-        mock_chain.count.return_value = 2
+        mock_chain.order_by.return_value.count.return_value = 2
         mock_chain.offset.return_value.limit.return_value.all.return_value = mock_users
 
         service = UserService(mock_db)
