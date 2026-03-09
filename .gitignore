@@ -199,6 +199,7 @@ cython_debug/
 
 # 本地測試音檔（不納入版本控制）
 scripts/*.wav
+scripts/.upload_test_state.json
 
 # 本地文件草稿
 docs/project-report.md

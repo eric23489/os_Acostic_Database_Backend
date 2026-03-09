@@ -15,6 +15,7 @@ from app.models.audio import AudioInfo
 from app.models.deployment import DeploymentInfo
 from app.models.point import PointInfo
 from app.models.project import ProjectInfo
+from app.models.upload_job import UploadJob, UploadTask
 from app.schemas.pagination import SortOrder
 from app.schemas.point import PointCreate, PointUpdate
 from app.utils.query import apply_filter, apply_search, apply_sorting, paginate
@@ -310,7 +311,17 @@ class PointService:
                         f"Failed to delete objects in bucket {bucket_name}: {e}"
                     )
 
-        # 刪除 DB 記錄 (先子後父)
+        # 刪除 DB 記錄（先子後父，需依 FK 順序）
+        audio_ids = [a.id for a in audios]
+        if audio_ids:
+            self.db.query(UploadTask).filter(UploadTask.audio_id.in_(audio_ids)).delete(
+                synchronize_session=False
+            )
+
+        self.db.query(UploadJob).filter(
+            UploadJob.deployment_id.in_(deployment_ids_sub)
+        ).delete(synchronize_session=False)
+
         deleted_audios = (
             self.db.query(AudioInfo)
             .filter(AudioInfo.deployment_id.in_(deployment_ids_sub))

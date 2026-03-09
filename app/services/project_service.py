@@ -10,12 +10,12 @@ from app.core.exceptions import (
     PROJECT_NAME_RESERVED,
     PROJECT_NOT_FOUND,
 )
-
 from app.core.minio import get_s3_client
 from app.models.audio import AudioInfo
 from app.models.deployment import DeploymentInfo
 from app.models.point import PointInfo
 from app.models.project import ProjectInfo
+from app.models.upload_job import UploadJob, UploadTask
 from app.schemas.pagination import SortOrder
 from app.schemas.project import ProjectCreate, ProjectUpdate
 from app.utils.naming import generate_slug_from_zh
@@ -146,8 +146,8 @@ class ProjectService:
             s3_client = get_s3_client()
             s3_client.create_bucket(Bucket=db_obj.name)
         except Exception as e:
-            # Log error or handle it. For now, we might not want to fail the whole request
-            # if bucket creation fails, but it's good practice to ensure consistency.
+            # Bucket creation failure does not fail the request;
+            # bucket can be created later or on next access.
             logger.error(f"Failed to create MinIO bucket '{db_obj.name}': {e}")
 
         return db_obj
@@ -187,8 +187,8 @@ class ProjectService:
             "deleted_by": user_id,
         }
 
-        # This synchronous part handles the faster updates for Project, Point, and Deployment.
-        # The slow Audio update is handled by a background task.
+        # Synchronous: Project, Point, Deployment.
+        # Audio soft-delete is handled by a background task.
 
         # Subquery: Find all Point IDs in this project
         point_ids_sub = self.db.query(PointInfo.id).filter(
@@ -347,9 +347,8 @@ class ProjectService:
         deployment_ids_sub = self.db.query(DeploymentInfo.id).filter(
             DeploymentInfo.point_id.in_(point_ids_sub)
         )
-        audio_keys_query = (
-            self.db.query(AudioInfo.object_key)
-            .filter(AudioInfo.deployment_id.in_(deployment_ids_sub))
+        audio_keys_query = self.db.query(AudioInfo.object_key).filter(
+            AudioInfo.deployment_id.in_(deployment_ids_sub)
         )
 
         # 刪除 MinIO 物件 (使用 yield_per 分批讀取，避免記憶體壓力)
@@ -384,7 +383,22 @@ class ProjectService:
         except Exception as e:
             logger.warning(f"Failed to delete bucket {bucket_name}: {e}")
 
-        # 刪除 DB 記錄 (順序重要：先子後父)
+        # 刪除 DB 記錄（先子後父，需依 FK 順序）
+        audio_ids = [
+            aid
+            for (aid,) in self.db.query(AudioInfo.id)
+            .filter(AudioInfo.deployment_id.in_(deployment_ids_sub))
+            .all()
+        ]
+        if audio_ids:
+            self.db.query(UploadTask).filter(UploadTask.audio_id.in_(audio_ids)).delete(
+                synchronize_session=False
+            )
+
+        self.db.query(UploadJob).filter(
+            UploadJob.deployment_id.in_(deployment_ids_sub)
+        ).delete(synchronize_session=False)
+
         deleted_audios = (
             self.db.query(AudioInfo)
             .filter(AudioInfo.deployment_id.in_(deployment_ids_sub))

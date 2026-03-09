@@ -1,161 +1,122 @@
 """
-上傳測試清理腳本。
+上傳測試資源清理腳本。
 
-刪除 upload_test.py 對 deployment_id=351 上傳的所有測試資料：
-- 取消進行中的 upload jobs
-- 刪除 MinIO 物件
-- 刪除 DB 的 upload_tasks、audio_info 記錄
+讀取 upload_test.py 產生的 .upload_test_state.json，
+依反序永久刪除所有測試建立的資源。
 
 使用方式:
-    python scripts/upload_test_cleanup.py [--dry-run]
+    python scripts/upload_test_cleanup.py
 """
 
-import argparse
-import os
+import json
 import sys
+from pathlib import Path
 
-if os.getcwd() not in sys.path:
-    sys.path.append(os.getcwd())
+import httpx
 
-from botocore.exceptions import ClientError
-
-from sqlalchemy import text
-
-from scripts.connections import get_db_session, get_minio_client
-
-DEPLOYMENT_ID = 351
-BUCKET = "taiwanpower2nd"
+# ── 設定 ──────────────────────────────────────────────────────────────────────
+API_BASE = "http://localhost:8000/api/v1"
+EMAIL = "aaa@example.com"
+PASSWORD = "aaa"
+SCRIPTS_DIR = Path(__file__).parent
+STATE_FILE = SCRIPTS_DIR / ".upload_test_state.json"
 
 
-def cleanup(dry_run: bool = False) -> None:
-    db = get_db_session()
-    s3 = get_minio_client()
+def login(client: httpx.Client) -> str:
+    resp = client.post(
+        f"{API_BASE}/users/login",
+        data={"username": EMAIL, "password": PASSWORD},
+    )
+    resp.raise_for_status()
+    print("[login] OK")
+    return resp.json()["access_token"]
 
-    prefix = "[DRY-RUN] " if dry_run else ""
 
-    try:
-        # 1. 查出所有相關 audio（含軟刪除）
-        rows = db.execute(
-            text("""
-            SELECT a.id, a.object_key, a.upload_status, a.is_deleted
-            FROM audio_info a
-            WHERE a.deployment_id = :dep_id
-            ORDER BY a.id
-            """),
-            {"dep_id": DEPLOYMENT_ID},
-        ).fetchall()
+def hard_delete(client: httpx.Client, resource: str, resource_id: int) -> bool:
+    resp = client.delete(f"{API_BASE}/{resource}/{resource_id}/permanent")
+    if resp.is_success:
+        print(f"  {resource.rstrip('s')} {resource_id} 刪除")
+        return True
+    print(
+        f"  {resource.rstrip('s')} {resource_id} 刪除失敗:"
+        f" {resp.status_code} {resp.text[:80]}"
+    )
+    return False
 
-        if not rows:
-            print("找不到任何 audio 記錄，無需清理。")
-            return
 
-        print(f"找到 {len(rows)} 筆 audio 記錄:")
-        for r in rows:
-            print(f"  id={r[0]} object_key={r[1]} status={r[2]} deleted={r[3]}")
+def cleanup(
+    client: httpx.Client,
+    audio_ids: list[int],
+    deployment_id: int | None,
+    point_id: int | None,
+    project_id: int | None,
+    recorder_id: int | None,
+    should_cleanup_recorder: bool,
+) -> int:
+    """刪除資源，回傳失敗數。"""
+    fails = 0
+    print("\n[cleanup]")
 
-        audio_ids = [r[0] for r in rows]
-        object_keys = [r[1] for r in rows]
+    for audio_id in audio_ids:
+        if not hard_delete(client, "audio", audio_id):
+            fails += 1
 
-        # 2. 取消進行中的 multipart uploads（查 upload_id）
-        upload_rows = db.execute(
-            text("""
-            SELECT id, upload_id, object_key
-            FROM upload_tasks
-            WHERE audio_id = ANY(:ids) AND upload_id IS NOT NULL
-            """),
-            {"ids": audio_ids},
-        ).fetchall()
+    if deployment_id:
+        if not hard_delete(client, "deployments", deployment_id):
+            fails += 1
 
-        for task_id, upload_id, object_key in upload_rows:
-            print(f"{prefix}Aborting multipart upload: {object_key} upload_id={upload_id[:16]}...")
-            if not dry_run:
-                try:
-                    s3.abort_multipart_upload(
-                        Bucket=BUCKET, Key=object_key, UploadId=upload_id
-                    )
-                except ClientError as e:
-                    print(f"  警告: abort 失敗 ({e})")
+    if point_id:
+        if not hard_delete(client, "points", point_id):
+            fails += 1
 
-        # 3. 刪除 MinIO 物件
-        print(f"\n{prefix}刪除 MinIO 物件 ({len(object_keys)} 個):")
-        for key in object_keys:
-            print(f"  {prefix}DELETE {BUCKET}/{key}")
-            if not dry_run:
-                try:
-                    s3.delete_object(Bucket=BUCKET, Key=key)
-                except ClientError as e:
-                    print(f"  警告: 刪除失敗 ({e})")
+    if project_id:
+        if not hard_delete(client, "projects", project_id):
+            fails += 1
 
-        # 4. 刪除 DB 記錄
-        print(f"\n{prefix}刪除 DB 記錄:")
+    if recorder_id and should_cleanup_recorder:
+        if not hard_delete(client, "recorders", recorder_id):
+            fails += 1
 
-        task_count = db.execute(
-            text("SELECT COUNT(*) FROM upload_tasks WHERE audio_id = ANY(:ids)"),
-            {"ids": audio_ids},
-        ).scalar()
-        print(f"  {prefix}DELETE upload_tasks ({task_count} 筆)")
-
-        job_rows = db.execute(
-            text("SELECT DISTINCT job_id FROM upload_tasks WHERE audio_id = ANY(:ids)"),
-            {"ids": audio_ids},
-        ).fetchall()
-
-        if not dry_run:
-            db.execute(
-                text("DELETE FROM upload_tasks WHERE audio_id = ANY(:ids)"),
-                {"ids": audio_ids},
-            )
-
-        print(f"  {prefix}DELETE audio_info ({len(audio_ids)} 筆)")
-        if not dry_run:
-            db.execute(
-                text("DELETE FROM audio_info WHERE id = ANY(:ids)"),
-                {"ids": audio_ids},
-            )
-
-        # 刪除沒有任何子任務的 upload_jobs
-        for (job_id,) in job_rows:
-            remaining = db.execute(
-                text("SELECT COUNT(*) FROM upload_tasks WHERE job_id = :jid"),
-                {"jid": job_id},
-            ).scalar()
-            if remaining == 0:
-                print(f"  {prefix}DELETE upload_jobs job_id={job_id}")
-                if not dry_run:
-                    db.execute(
-                        text("DELETE FROM upload_jobs WHERE id = :jid"), {"jid": job_id}
-                    )
-
-        if not dry_run:
-            db.commit()
-            print("\n清理完成。")
-        else:
-            print("\n[DRY-RUN] 以上為預覽，未實際執行。加上 --no-dry-run 執行。")
-
-    except Exception as e:
-        db.rollback()
-        print(f"錯誤: {e}")
-        raise
-    finally:
-        db.close()
+    print("[cleanup] 完成")
+    return fails
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        default=True,
-        help="預覽模式（預設），不實際執行",
-    )
-    parser.add_argument(
-        "--no-dry-run",
-        dest="dry_run",
-        action="store_false",
-        help="實際執行刪除",
-    )
-    args = parser.parse_args()
-    cleanup(dry_run=args.dry_run)
+    if not STATE_FILE.exists():
+        print(f"[error] 找不到 {STATE_FILE.name}，請先執行 upload_test.py")
+        sys.exit(1)
+
+    state = json.loads(STATE_FILE.read_text(encoding="utf-8"))
+    print(f"[state] 讀取 {STATE_FILE.name}:")
+    for key, value in state.items():
+        print(f"  {key}: {value}")
+
+    with httpx.Client(timeout=60) as client:
+        token = login(client)
+        client.headers["Authorization"] = f"Bearer {token}"
+
+        # 相容舊格式（audio_id 單值）與新格式（audio_ids 清單）
+        raw = state.get("audio_ids") or (
+            [state["audio_id"]] if state.get("audio_id") else []
+        )
+
+        fails = cleanup(
+            client,
+            audio_ids=raw,
+            deployment_id=state.get("deployment_id"),
+            point_id=state.get("point_id"),
+            project_id=state.get("project_id"),
+            recorder_id=state.get("recorder_id"),
+            should_cleanup_recorder=state.get("should_cleanup_recorder", False),
+        )
+
+    if fails == 0:
+        STATE_FILE.unlink()
+        print(f"\n{STATE_FILE.name} 已刪除")
+        sys.exit(0)
+    else:
+        print(f"\n{fails} 個資源刪除失敗，{STATE_FILE.name} 保留供重試")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

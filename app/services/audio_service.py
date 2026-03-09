@@ -24,6 +24,7 @@ from app.models.audio import AudioInfo
 from app.models.deployment import DeploymentInfo
 from app.models.point import PointInfo
 from app.models.project import ProjectInfo
+from app.models.upload_job import UploadTask
 from app.models.user import UserInfo
 from app.schemas.audio import (
     AudioBatchCreateRequest,
@@ -235,17 +236,31 @@ class AudioService:
             raise PROJECT_NOT_FOUND
         bucket_name = project.name
 
-        # 刪除 MinIO 物件
+        # 刪除 MinIO 物件（bucket 或 object 不存在視為已清理）
         minio_service = MinioService()
         try:
             minio_service.delete_object(bucket_name, audio.object_key)
         except ClientError as e:
-            logger.error(
-                "Failed to delete MinIO object during hard delete. "
-                "object_key=%s bucket=%s error=%s",
-                audio.object_key, bucket_name, e,
-            )
-            raise MINIO_DELETE_FAILED
+            error_code = e.response.get("Error", {}).get("Code", "")
+            if error_code in ("NoSuchBucket", "NoSuchKey"):
+                logger.warning(
+                    "MinIO object/bucket not found during hard delete, skipping. "
+                    "object_key=%s bucket=%s",
+                    audio.object_key,
+                    bucket_name,
+                )
+            else:
+                logger.error(
+                    "Failed to delete MinIO object during hard delete. "
+                    "object_key=%s bucket=%s error=%s",
+                    audio.object_key,
+                    bucket_name,
+                    e,
+                )
+                raise MINIO_DELETE_FAILED from None
+
+        # 刪除關聯的 upload_tasks（FK 無 CASCADE，需先刪）
+        self.db.query(UploadTask).filter(UploadTask.audio_id == audio_id).delete()
 
         # 刪除 DB 記錄
         self.db.query(AudioInfo).filter(AudioInfo.id == audio_id).delete()
@@ -358,9 +373,11 @@ class AudioService:
         except IntegrityError as e:
             self.db.rollback()
             logger.warning(
-                "create_audios_batch flush IntegrityError (concurrent write conflict): %s", e
+                "create_audios_batch flush IntegrityError"
+                " (concurrent write conflict): %s",
+                e,
             )
-            raise AUDIO_CONCURRENT_CONFLICT
+            raise AUDIO_CONCURRENT_CONFLICT from None
 
         # 補充 created 結果（flush 後才有 ID）
         for idx, audio in to_create:
@@ -379,9 +396,10 @@ class AudioService:
             self.db.rollback()
             logger.error(
                 "create_audios_batch commit failed. deployment_id=%s error=%s",
-                deployment_id, e,
+                deployment_id,
+                e,
             )
-            raise AUDIO_DB_COMMIT_FAILED
+            raise AUDIO_DB_COMMIT_FAILED from None
 
         # 依照原始順序重建結果列表，正確處理 batch 內重複 key 的排序
         results = [indexed_results[i] for i in range(len(request.audios))]
