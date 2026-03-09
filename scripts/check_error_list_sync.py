@@ -46,10 +46,11 @@ def parse_exceptions(path: Path) -> dict[str, ErrorEntry]:
     """解析 exceptions.py，回傳 error_code -> ErrorEntry 的 dict。"""
     text = path.read_text(encoding="utf-8")
 
-    # 匹配 AppException(...) 多行區塊
+    # 匹配 AppException(...) 或 super().__init__(...) 多行區塊
+    # 後者用於 class-based 寫法（每次 raise 建立新 instance）
     # 使用 [^\n]*\n\s* 跳過行尾的 noqa 注釋等內容
     block_re = re.compile(
-        r"AppException\(\s*"
+        r"(?:AppException|super\(\).__init__)\(\s*"
         r'error_code\s*=\s*"([^"]+)"[^\n]*\n\s*'
         r'message\s*=\s*"([^"]+)"[^\n]*\n\s*'
         r"http_status\s*=\s*(status\.HTTP_\d+_\w+)",

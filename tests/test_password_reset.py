@@ -10,7 +10,6 @@ from app.core.exceptions import (
     PASSWORD_RESET_TOKEN_EXPIRED,
     PASSWORD_RESET_TOKEN_INVALID,
 )
-from app.enums.enums import UserRole
 
 
 class TestForgotPassword:
@@ -18,9 +17,7 @@ class TestForgotPassword:
 
     def test_forgot_password_with_password_account(self, client, mock_db):
         """Test forgot password for account with password."""
-        with patch(
-            "app.api.v1.endpoints.api_auth.PasswordResetService"
-        ) as MockService:
+        with patch("app.api.v1.endpoints.api_auth.PasswordResetService") as MockService:
             mock_service = MockService.return_value
             mock_service.initiate_password_reset.return_value = (
                 "reset-token-123",
@@ -36,7 +33,9 @@ class TestForgotPassword:
 
             assert response.status_code == 200
             data = response.json()
-            assert "reset" in data["message"].lower() or "sent" in data["message"].lower()
+            assert (
+                "reset" in data["message"].lower() or "sent" in data["message"].lower()
+            )
             assert data["has_google_oauth"] is False
 
     def test_forgot_password_oauth_only_account(self, client, mock_db):
@@ -44,9 +43,7 @@ class TestForgotPassword:
 
         For security, the response should NOT reveal OAuth status.
         """
-        with patch(
-            "app.api.v1.endpoints.api_auth.PasswordResetService"
-        ) as MockService:
+        with patch("app.api.v1.endpoints.api_auth.PasswordResetService") as MockService:
             mock_service = MockService.return_value
             mock_service.initiate_password_reset.return_value = (
                 None,  # no token
@@ -62,7 +59,9 @@ class TestForgotPassword:
             assert response.status_code == 200
             data = response.json()
             # Security: always return generic message, never expose OAuth status
-            assert "email" in data["message"].lower() or "sent" in data["message"].lower()
+            assert (
+                "email" in data["message"].lower() or "sent" in data["message"].lower()
+            )
             assert data["has_google_oauth"] is False  # Never expose for security
 
     def test_forgot_password_with_google_and_password(self, client, mock_db):
@@ -70,9 +69,7 @@ class TestForgotPassword:
 
         For security, the response should NOT reveal OAuth status.
         """
-        with patch(
-            "app.api.v1.endpoints.api_auth.PasswordResetService"
-        ) as MockService:
+        with patch("app.api.v1.endpoints.api_auth.PasswordResetService") as MockService:
             mock_service = MockService.return_value
             mock_service.initiate_password_reset.return_value = (
                 "reset-token-123",
@@ -92,9 +89,7 @@ class TestForgotPassword:
 
     def test_forgot_password_nonexistent_email(self, client, mock_db):
         """Test forgot password for non-existent email (should return success)."""
-        with patch(
-            "app.api.v1.endpoints.api_auth.PasswordResetService"
-        ) as MockService:
+        with patch("app.api.v1.endpoints.api_auth.PasswordResetService") as MockService:
             mock_service = MockService.return_value
             mock_service.initiate_password_reset.return_value = (
                 None,
@@ -114,9 +109,7 @@ class TestForgotPassword:
         """Test forgot password for deactivated account."""
         from fastapi import HTTPException
 
-        with patch(
-            "app.api.v1.endpoints.api_auth.PasswordResetService"
-        ) as MockService:
+        with patch("app.api.v1.endpoints.api_auth.PasswordResetService") as MockService:
             mock_service = MockService.return_value
             mock_service.initiate_password_reset.side_effect = HTTPException(
                 status_code=400, detail="This account has been deactivated"
@@ -135,9 +128,7 @@ class TestResetPassword:
 
     def test_reset_password_success(self, client, mock_db):
         """Test successfully resetting password."""
-        with patch(
-            "app.api.v1.endpoints.api_auth.PasswordResetService"
-        ) as MockService:
+        with patch("app.api.v1.endpoints.api_auth.PasswordResetService") as MockService:
             mock_service = MockService.return_value
             mock_user = MagicMock()
             mock_service.reset_password.return_value = mock_user
@@ -152,9 +143,7 @@ class TestResetPassword:
 
     def test_reset_password_invalid_token(self, client, mock_db):
         """Test reset password with invalid token."""
-        with patch(
-            "app.api.v1.endpoints.api_auth.PasswordResetService"
-        ) as MockService:
+        with patch("app.api.v1.endpoints.api_auth.PasswordResetService") as MockService:
             mock_service = MockService.return_value
             mock_service.reset_password.side_effect = PASSWORD_RESET_TOKEN_INVALID
 
@@ -168,9 +157,7 @@ class TestResetPassword:
 
     def test_reset_password_expired_token(self, client, mock_db):
         """Test reset password with expired token."""
-        with patch(
-            "app.api.v1.endpoints.api_auth.PasswordResetService"
-        ) as MockService:
+        with patch("app.api.v1.endpoints.api_auth.PasswordResetService") as MockService:
             mock_service = MockService.return_value
             mock_service.reset_password.side_effect = PASSWORD_RESET_TOKEN_EXPIRED
 
@@ -202,9 +189,7 @@ class TestOAuthServiceUnit:
         mock_db.query.return_value.filter.return_value.first.return_value = None
 
         with (
-            patch.object(
-                OAuthService, "exchange_code_for_tokens"
-            ) as mock_exchange,
+            patch.object(OAuthService, "exchange_code_for_tokens") as mock_exchange,
             patch.object(OAuthService, "get_google_user_info") as mock_user_info,
         ):
             mock_exchange.return_value = {"access_token": "test-token"}
@@ -233,7 +218,7 @@ class TestOAuthServiceUnit:
         with pytest.raises(AppException) as exc_info:
             service.unlink_google_account(mock_user)
 
-        assert exc_info.value is OAUTH_PASSWORD_REQUIRED
+        assert isinstance(exc_info.value, OAUTH_PASSWORD_REQUIRED)
 
 
 class TestPasswordResetServiceUnit:

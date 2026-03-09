@@ -10,10 +10,9 @@
 所有測試使用 mock，不連接真實資料庫。
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
-import pytest
 from fastapi import HTTPException
 
 from app.core.config import settings
@@ -23,9 +22,8 @@ from app.core.exceptions import (
     POINT_NAME_COLLISION,
     PROJECT_NAME_COLLISION,
     PROJECT_NOT_FOUND,
-    RECORDER_IDENTIFIER_COLLISION,
+    RECORDER_IDENTIFIER_DUPLICATE,
 )
-
 
 # =============================================================================
 # Project 軟刪除測試
@@ -43,9 +41,7 @@ class TestProjectSoftDelete:
         - API 回傳 200 狀態碼
         - Service 的 delete_project 方法被呼叫
         """
-        with patch(
-            "app.api.v1.endpoints.api_projects.ProjectService"
-        ) as MockService:
+        with patch("app.api.v1.endpoints.api_projects.ProjectService") as MockService:
             mock_service = MockService.return_value
             # 模擬已刪除的專案回傳（使用 MagicMock 模擬 ORM 物件）
             mock_project = MagicMock()
@@ -63,10 +59,10 @@ class TestProjectSoftDelete:
             mock_project.contact_phone = None
             mock_project.contact_email = None
             mock_project.project_type = None
-            mock_project.created_at = datetime.now(timezone.utc)
-            mock_project.updated_at = datetime.now(timezone.utc)
+            mock_project.created_at = datetime.now(UTC)
+            mock_project.updated_at = datetime.now(UTC)
             mock_project.is_deleted = True
-            mock_project.deleted_at = datetime.now(timezone.utc)
+            mock_project.deleted_at = datetime.now(UTC)
             mock_project.deleted_by = 1
             mock_service.delete_project.return_value = mock_project
 
@@ -83,9 +79,7 @@ class TestProjectSoftDelete:
         - API 回傳 404 狀態碼
         - 錯誤訊息顯示找不到專案
         """
-        with patch(
-            "app.api.v1.endpoints.api_projects.ProjectService"
-        ) as MockService:
+        with patch("app.api.v1.endpoints.api_projects.ProjectService") as MockService:
             mock_service = MockService.return_value
             mock_service.delete_project.side_effect = PROJECT_NOT_FOUND
 
@@ -102,9 +96,7 @@ class TestProjectSoftDelete:
         - API 回傳 200 狀態碼
         - Service 的 restore_project 方法被呼叫
         """
-        with patch(
-            "app.api.v1.endpoints.api_projects.ProjectService"
-        ) as MockService:
+        with patch("app.api.v1.endpoints.api_projects.ProjectService") as MockService:
             mock_service = MockService.return_value
             # 模擬還原後的專案
             mock_project = MagicMock()
@@ -122,8 +114,8 @@ class TestProjectSoftDelete:
             mock_project.contact_phone = None
             mock_project.contact_email = None
             mock_project.project_type = None
-            mock_project.created_at = datetime.now(timezone.utc)
-            mock_project.updated_at = datetime.now(timezone.utc)
+            mock_project.created_at = datetime.now(UTC)
+            mock_project.updated_at = datetime.now(UTC)
             mock_project.is_deleted = False
             mock_project.deleted_at = None
             mock_project.deleted_by = 1  # 模擬原刪除者為當前使用者
@@ -147,9 +139,7 @@ class TestProjectSoftDelete:
         - API 回傳 400 狀態碼
         - 錯誤訊息顯示名稱已存在
         """
-        with patch(
-            "app.api.v1.endpoints.api_projects.ProjectService"
-        ) as MockService:
+        with patch("app.api.v1.endpoints.api_projects.ProjectService") as MockService:
             mock_service = MockService.return_value
             # 模擬找到專案
             mock_project = MagicMock()
@@ -192,10 +182,10 @@ class TestPointSoftDelete:
             mock_point.gps_lon_plan = 121.5
             mock_point.depth_plan = None
             mock_point.description = None
-            mock_point.created_at = datetime.now(timezone.utc)
-            mock_point.updated_at = datetime.now(timezone.utc)
+            mock_point.created_at = datetime.now(UTC)
+            mock_point.updated_at = datetime.now(UTC)
             mock_point.is_deleted = True
-            mock_point.deleted_at = datetime.now(timezone.utc)
+            mock_point.deleted_at = datetime.now(UTC)
             mock_point.deleted_by = 1
             mock_service.delete_point.return_value = mock_point
 
@@ -240,8 +230,8 @@ class TestPointSoftDelete:
             mock_point.gps_lon_plan = 121.5
             mock_point.depth_plan = None
             mock_point.description = None
-            mock_point.created_at = datetime.now(timezone.utc)
-            mock_point.updated_at = datetime.now(timezone.utc)
+            mock_point.created_at = datetime.now(UTC)
+            mock_point.updated_at = datetime.now(UTC)
             mock_point.is_deleted = False
             mock_point.deleted_at = None
             mock_point.deleted_by = 1  # 模擬原刪除者為當前使用者
@@ -318,10 +308,10 @@ class TestDeploymentSoftDelete:
             mock_deployment.description = None
             mock_deployment.deploy_personnel = None
             mock_deployment.retrieve_personnel = None
-            mock_deployment.created_at = datetime.now(timezone.utc)
-            mock_deployment.updated_at = datetime.now(timezone.utc)
+            mock_deployment.created_at = datetime.now(UTC)
+            mock_deployment.updated_at = datetime.now(UTC)
             mock_deployment.is_deleted = True
-            mock_deployment.deleted_at = datetime.now(timezone.utc)
+            mock_deployment.deleted_at = datetime.now(UTC)
             mock_deployment.deleted_by = 1
             mock_service.delete_deployment.return_value = mock_deployment
 
@@ -381,8 +371,8 @@ class TestDeploymentSoftDelete:
             mock_deployment.description = None
             mock_deployment.deploy_personnel = None
             mock_deployment.retrieve_personnel = None
-            mock_deployment.created_at = datetime.now(timezone.utc)
-            mock_deployment.updated_at = datetime.now(timezone.utc)
+            mock_deployment.created_at = datetime.now(UTC)
+            mock_deployment.updated_at = datetime.now(UTC)
             mock_deployment.is_deleted = False
             mock_deployment.deleted_at = None
             mock_deployment.deleted_by = 1  # 模擬原刪除者為當前使用者
@@ -457,9 +447,9 @@ class TestAudioSoftDelete:
             mock_audio.target_type = None
             mock_audio.meta_json = None
             mock_audio.is_cold_storage = False
-            mock_audio.updated_at = datetime.now(timezone.utc)
+            mock_audio.updated_at = datetime.now(UTC)
             mock_audio.is_deleted = True
-            mock_audio.deleted_at = datetime.now(timezone.utc)
+            mock_audio.deleted_at = datetime.now(UTC)
             mock_audio.deleted_by = 1
             mock_service.delete_audio.return_value = mock_audio
 
@@ -513,7 +503,7 @@ class TestAudioSoftDelete:
             mock_audio.target_type = None
             mock_audio.meta_json = None
             mock_audio.is_cold_storage = False
-            mock_audio.updated_at = datetime.now(timezone.utc)
+            mock_audio.updated_at = datetime.now(UTC)
             mock_audio.is_deleted = False
             mock_audio.deleted_at = None
             mock_audio.deleted_by = 1  # 模擬原刪除者為當前使用者
@@ -566,9 +556,7 @@ class TestRecorderSoftDelete:
         - API 回傳 200 狀態碼
         - Service 的 delete_recorder 方法被呼叫
         """
-        with patch(
-            "app.api.v1.endpoints.api_recorders.RecorderService"
-        ) as MockService:
+        with patch("app.api.v1.endpoints.api_recorders.RecorderService") as MockService:
             mock_service = MockService.return_value
             # 模擬已刪除的錄音機
             mock_recorder = MagicMock()
@@ -583,10 +571,10 @@ class TestRecorderSoftDelete:
             mock_recorder.owner = "Ocean Sound"
             mock_recorder.recorder_channels = 1
             mock_recorder.description = None
-            mock_recorder.created_at = datetime.now(timezone.utc)
-            mock_recorder.updated_at = datetime.now(timezone.utc)
+            mock_recorder.created_at = datetime.now(UTC)
+            mock_recorder.updated_at = datetime.now(UTC)
             mock_recorder.is_deleted = True
-            mock_recorder.deleted_at = datetime.now(timezone.utc)
+            mock_recorder.deleted_at = datetime.now(UTC)
             mock_recorder.deleted_by = 1
             mock_service.delete_recorder.return_value = mock_recorder
 
@@ -602,9 +590,7 @@ class TestRecorderSoftDelete:
         預期行為：
         - API 回傳 404 狀態碼
         """
-        with patch(
-            "app.api.v1.endpoints.api_recorders.RecorderService"
-        ) as MockService:
+        with patch("app.api.v1.endpoints.api_recorders.RecorderService") as MockService:
             mock_service = MockService.return_value
             mock_service.delete_recorder.side_effect = HTTPException(
                 status_code=404, detail="Recorder with ID 999 not found."
@@ -622,9 +608,7 @@ class TestRecorderSoftDelete:
         - API 回傳 200 狀態碼
         - Service 的 restore_recorder 方法被呼叫
         """
-        with patch(
-            "app.api.v1.endpoints.api_recorders.RecorderService"
-        ) as MockService:
+        with patch("app.api.v1.endpoints.api_recorders.RecorderService") as MockService:
             mock_service = MockService.return_value
             # 模擬還原後的錄音機
             mock_recorder = MagicMock()
@@ -639,8 +623,8 @@ class TestRecorderSoftDelete:
             mock_recorder.owner = "Ocean Sound"
             mock_recorder.recorder_channels = 1
             mock_recorder.description = None
-            mock_recorder.created_at = datetime.now(timezone.utc)
-            mock_recorder.updated_at = datetime.now(timezone.utc)
+            mock_recorder.created_at = datetime.now(UTC)
+            mock_recorder.updated_at = datetime.now(UTC)
             mock_recorder.is_deleted = False
             mock_recorder.deleted_at = None
             mock_recorder.deleted_by = 1  # 模擬原刪除者為當前使用者
@@ -662,16 +646,14 @@ class TestRecorderSoftDelete:
         預期行為：
         - API 回傳 400 狀態碼
         """
-        with patch(
-            "app.api.v1.endpoints.api_recorders.RecorderService"
-        ) as MockService:
+        with patch("app.api.v1.endpoints.api_recorders.RecorderService") as MockService:
             mock_service = MockService.return_value
             mock_recorder = MagicMock()
             mock_recorder.deleted_by = 1
             mock_db.query.return_value.filter.return_value.first.return_value = (
                 mock_recorder
             )
-            mock_service.restore_recorder.side_effect = RECORDER_IDENTIFIER_COLLISION
+            mock_service.restore_recorder.side_effect = RECORDER_IDENTIFIER_DUPLICATE
 
             response = client.post(f"{settings.api_prefix}/recorders/1/restore")
 
@@ -695,9 +677,7 @@ class TestSoftDeleteFiltering:
         - Service 的 get_projects 方法被呼叫
         - 只回傳活躍的專案
         """
-        with patch(
-            "app.api.v1.endpoints.api_projects.ProjectService"
-        ) as MockService:
+        with patch("app.api.v1.endpoints.api_projects.ProjectService") as MockService:
             mock_service = MockService.return_value
             # 模擬只回傳活躍的專案
             mock_project = MagicMock()
@@ -715,8 +695,8 @@ class TestSoftDeleteFiltering:
             mock_project.contact_phone = None
             mock_project.contact_email = None
             mock_project.project_type = None
-            mock_project.created_at = datetime.now(timezone.utc)
-            mock_project.updated_at = datetime.now(timezone.utc)
+            mock_project.created_at = datetime.now(UTC)
+            mock_project.updated_at = datetime.now(UTC)
             mock_service.get_projects.return_value = ([mock_project], 1)
 
             response = client.get(f"{settings.api_prefix}/projects/")
@@ -745,8 +725,8 @@ class TestSoftDeleteFiltering:
             mock_point.gps_lon_plan = 121.5
             mock_point.depth_plan = None
             mock_point.description = None
-            mock_point.created_at = datetime.now(timezone.utc)
-            mock_point.updated_at = datetime.now(timezone.utc)
+            mock_point.created_at = datetime.now(UTC)
+            mock_point.updated_at = datetime.now(UTC)
             mock_service.get_points.return_value = ([mock_point], 1)
 
             response = client.get(f"{settings.api_prefix}/points/?project_id=1")
@@ -788,8 +768,8 @@ class TestSoftDeleteFiltering:
             mock_deployment.description = None
             mock_deployment.deploy_personnel = None
             mock_deployment.retrieve_personnel = None
-            mock_deployment.created_at = datetime.now(timezone.utc)
-            mock_deployment.updated_at = datetime.now(timezone.utc)
+            mock_deployment.created_at = datetime.now(UTC)
+            mock_deployment.updated_at = datetime.now(UTC)
             mock_service.get_deployments.return_value = ([mock_deployment], 1)
 
             response = client.get(f"{settings.api_prefix}/deployments/?point_id=1")
@@ -827,7 +807,7 @@ class TestSoftDeleteFiltering:
             mock_audio.target_type = None
             mock_audio.meta_json = None
             mock_audio.is_cold_storage = False
-            mock_audio.updated_at = datetime.now(timezone.utc)
+            mock_audio.updated_at = datetime.now(UTC)
             mock_service.get_audios.return_value = ([mock_audio], 1)
 
             response = client.get(f"{settings.api_prefix}/audio/?deployment_id=1")
@@ -846,9 +826,7 @@ class TestSoftDeleteFiltering:
         - Service 的 get_recorders 方法被呼叫
         - 只回傳活躍的錄音機
         """
-        with patch(
-            "app.api.v1.endpoints.api_recorders.RecorderService"
-        ) as MockService:
+        with patch("app.api.v1.endpoints.api_recorders.RecorderService") as MockService:
             mock_service = MockService.return_value
             mock_recorder = MagicMock()
             mock_recorder.id = 1
@@ -862,8 +840,8 @@ class TestSoftDeleteFiltering:
             mock_recorder.owner = "Ocean Sound"
             mock_recorder.recorder_channels = 1
             mock_recorder.description = None
-            mock_recorder.created_at = datetime.now(timezone.utc)
-            mock_recorder.updated_at = datetime.now(timezone.utc)
+            mock_recorder.created_at = datetime.now(UTC)
+            mock_recorder.updated_at = datetime.now(UTC)
             mock_service.get_recorders.return_value = ([mock_recorder], 1)
 
             response = client.get(f"{settings.api_prefix}/recorders/")

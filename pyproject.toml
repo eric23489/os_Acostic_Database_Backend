@@ -33,6 +33,12 @@ select = ["E", "F", "W", "I", "UP", "B", "N"]
 # B008: FastAPI Depends() in function defaults is standard practice
 ignore = ["B008"]
 
+# 測試檔案放寬部分規則
+# N806: MockService 是 patch context manager 的慣用命名（大寫代表 class mock）
+# E501: 測試 assertion 字串允許較長行
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["N806", "E501"]
+
 # --- Ruff Formatter (格式化器) 的設定 ---
 [tool.ruff.format]
 quote-style = "double"

@@ -1,9 +1,7 @@
 from unittest.mock import patch
 
-from fastapi import HTTPException
-
 from app.core.config import settings
-from app.core.exceptions import RECORDER_IDENTIFIER_COLLISION
+from app.core.exceptions import RECORDER_IDENTIFIER_DUPLICATE
 from app.schemas.recorder import RecorderResponse
 
 
@@ -101,7 +99,7 @@ def test_update_recorder(client):
 def test_create_recorder_duplicate(client):
     with patch("app.api.v1.endpoints.api_recorders.RecorderService") as MockService:
         mock_service = MockService.return_value
-        mock_service.create_recorder.side_effect = RECORDER_IDENTIFIER_COLLISION
+        mock_service.create_recorder.side_effect = RECORDER_IDENTIFIER_DUPLICATE
 
         response = client.post(
             f"{settings.api_prefix}/recorders/",

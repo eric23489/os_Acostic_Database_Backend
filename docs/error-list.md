@@ -37,10 +37,10 @@
 with pytest.raises(AppException) as exc_info:
     service.some_method(...)
 
-assert exc_info.value is FOO_BAR_ERROR   # 推薦：直接比對常數
+assert isinstance(exc_info.value, FOO_BAR_ERROR)   # 推薦：直接比對常數類別
 # 或
-assert exc_info.value.http_status == 400
 assert exc_info.value.error_code == "FOO_BAR_ERROR"
+assert exc_info.value.http_status == 400
 ```
 
 ---
