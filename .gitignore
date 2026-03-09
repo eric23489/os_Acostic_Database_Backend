@@ -206,3 +206,5 @@ docs/project-report.md
 
 # Continue IDE 設定
 .continue/
+# Claude Code 本地設定
+.claude/settings.local.json
