@@ -1,5 +1,6 @@
 import boto3
 from botocore.client import Config
+
 from app.core.config import settings
 
 
@@ -10,6 +11,21 @@ def get_s3_client():
         aws_access_key_id=settings.aws_access_key_id,
         aws_secret_access_key=settings.aws_secret_access_key,
         config=Config(signature_version="s3v4"),
+        region_name="us-east-1",
+    )
+
+
+def get_s3_health_client():
+    """建立低 timeout 的 MinIO client，專供健康檢查使用。
+
+    避免 MinIO 無回應時 /health 端點長時間 block。
+    """
+    return boto3.client(
+        "s3",
+        endpoint_url=f"http://{settings.minio_ip_address}:{settings.minio_port}",
+        aws_access_key_id=settings.aws_access_key_id,
+        aws_secret_access_key=settings.aws_secret_access_key,
+        config=Config(signature_version="s3v4", connect_timeout=3, read_timeout=3),
         region_name="us-east-1",
     )
 

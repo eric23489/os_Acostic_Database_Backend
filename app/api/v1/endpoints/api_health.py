@@ -5,7 +5,7 @@ from fastapi.responses import Response
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.core.minio import get_s3_client
+from app.core.minio import get_s3_health_client
 from app.db.session import get_db
 from app.schemas.common import HealthResponse
 
@@ -40,7 +40,7 @@ def _check_db(db: Session) -> Literal["ok", "error"]:
 def _check_minio() -> Literal["ok", "error"]:
     """Call list_buckets to verify MinIO connectivity."""
     try:
-        get_s3_client().list_buckets()
+        get_s3_health_client().list_buckets()
         return "ok"
     except Exception:
         return "error"

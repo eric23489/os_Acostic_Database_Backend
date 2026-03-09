@@ -98,7 +98,8 @@ def paginate(query: Query, skip: int, limit: int) -> tuple[list[Any], int]:
         tuple: (items, total) - 分頁後的項目列表和總筆數
     """
     # 取得總筆數 (在套用 offset/limit 之前)
-    total = query.count()
+    # order_by(None) 避免排序條件進入 COUNT 子查詢造成額外開銷
+    total = query.order_by(None).count()
 
     # 套用分頁
     items = query.offset(skip).limit(limit).all()

@@ -78,7 +78,8 @@ class PointService:
         """
         query = (
             self.db.query(PointInfo)
-            .options(selectinload(PointInfo.deployments))
+            # 只載入 id 欄位供 deployment_count 計算 (len)，避免拉取全部欄位
+            .options(selectinload(PointInfo.deployments).load_only(DeploymentInfo.id))
             .filter(PointInfo.is_deleted.is_(False))
         )
 
