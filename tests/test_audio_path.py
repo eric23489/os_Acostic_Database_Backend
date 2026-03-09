@@ -5,7 +5,6 @@ from datetime import datetime
 import pytest
 
 from app.utils.audio_path import (
-    AudioFileInfo,
     generate_object_key,
     parse_audio_filename,
     validate_filename_format,

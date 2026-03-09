@@ -4,12 +4,9 @@ Celery 任務測試。
 測試 app/tasks/audio_tasks.py 中的清理任務。
 """
 
-from datetime import datetime, timedelta, UTC
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock, patch
 
-import pytest
-
-from app.enums.enums import JobStatus, TaskStatus, UploadStatus
+from app.enums.enums import JobStatus
 
 
 class TestFinalizeCompletedUploads:
@@ -344,7 +341,9 @@ class TestCeleryBeatSchedule:
         from app.core.celery_app import celery_app
 
         schedule = celery_app.conf.beat_schedule["cleanup-abandoned-audio"]
-        assert schedule["task"] == "app.tasks.audio_tasks.cleanup_abandoned_audio_records"
+        assert (
+            schedule["task"] == "app.tasks.audio_tasks.cleanup_abandoned_audio_records"
+        )
 
     def test_cleanup_expired_jobs_schedule(self):
         """測試過期任務清理排程。"""

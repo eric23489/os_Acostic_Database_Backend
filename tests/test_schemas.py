@@ -1,5 +1,6 @@
+from datetime import UTC, datetime, timedelta
+
 import pytest
-from datetime import datetime, timezone, timedelta
 from pydantic import ValidationError
 
 from app.schemas.audio import AudioBase, AudioBatchItem, AudioUpdate
@@ -27,7 +28,7 @@ def test_datetime_serializer():
     Test that datetime fields are serialized to ISO 8601 format with +08:00 timezone.
     """
     # Simulate a UTC datetime from database (e.g., 04:00 UTC = 12:00 UTC+8)
-    utc_dt = datetime(2024, 1, 1, 4, 0, 0, tzinfo=timezone.utc)
+    utc_dt = datetime(2024, 1, 1, 4, 0, 0, tzinfo=UTC)
     project = ProjectResponse(id=1, name="test-project", start_time=utc_dt)
 
     # Dump model to JSON-compatible dict

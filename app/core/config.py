@@ -5,7 +5,8 @@ except ImportError as exc:  # pragma: no cover - dependency guard
         from pydantic import BaseSettings  # type: ignore
     except ImportError:
         raise ImportError(
-            "Install `pydantic-settings` (for pydantic v2) or ensure pydantic v1 is available."
+            "Install `pydantic-settings` (for pydantic v2)"
+            " or ensure pydantic v1 is available."
         ) from exc
 
 

@@ -1,11 +1,10 @@
 """Unit tests for OAuthService."""
 
-import pytest
-from datetime import datetime, UTC
 from unittest.mock import MagicMock, patch
 
-from app.core.exceptions import AppException
+import pytest
 
+from app.core.exceptions import AppException
 from app.services.oauth_service import OAuthService, create_jwt_for_user
 
 

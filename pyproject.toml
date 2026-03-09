@@ -38,7 +38,7 @@ ignore = ["B008"]
 # N806: MockService 是 patch context manager 的慣用命名（大寫代表 class mock）
 # E501: 測試 assertion 字串允許較長行
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["N806", "E501"]
+"tests/**" = ["N806", "E501", "F841"]
 
 # --- Ruff Formatter (格式化器) 的設定 ---
 [tool.ruff.format]

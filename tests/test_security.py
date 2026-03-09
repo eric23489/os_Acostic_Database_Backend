@@ -1,12 +1,14 @@
-import pytest
 from datetime import timedelta
+
+import pytest
+from jwt import PyJWTError
+
 from app.core.security import (
-    hash_password,
-    verify_password,
     create_access_token,
     decode_access_token,
+    hash_password,
+    verify_password,
 )
-from jose import JWTError
 
 
 def test_password_hashing():
@@ -29,5 +31,5 @@ def test_jwt_token_expired():
     # Create a token that expired 1 minute ago
     data = {"sub": "test@example.com"}
     expired_token = create_access_token(data, expires_delta=timedelta(minutes=-1))
-    with pytest.raises(JWTError):
+    with pytest.raises(PyJWTError):
         decode_access_token(expired_token)

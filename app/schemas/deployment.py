@@ -1,6 +1,13 @@
 from datetime import datetime, timedelta, timezone
 
-from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_serializer,
+    field_validator,
+    model_validator,
+)
 
 from app.enums.enums import DeploymentStatus
 from app.schemas.point import PointWithProjectResponse
@@ -39,7 +46,11 @@ class DeploymentBase(BaseModel):
 
     @model_validator(mode="after")
     def validate_time_range(self) -> "DeploymentBase":
-        if self.deploy_time and self.return_time and self.deploy_time > self.return_time:
+        if (
+            self.deploy_time
+            and self.return_time
+            and (self.deploy_time > self.return_time)
+        ):
             raise ValueError("deploy_time must be before or equal to return_time")
         return self
 

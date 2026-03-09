@@ -11,14 +11,13 @@ from fastapi import HTTPException
 from pydantic import ValidationError
 
 from app.core.config import settings
-from app.core.exceptions import AppException, DEPLOYMENT_NOT_FOUND
+from app.core.exceptions import DEPLOYMENT_NOT_FOUND, AppException
 from app.schemas.audio import (
     AudioBatchCreateRequest,
     AudioBatchCreateResponse,
     AudioBatchResultItem,
 )
 from app.services.upload_job_service import UploadJobService
-
 
 # =============================================================================
 # AudioBatchResultItem 型別不變量測試 (C5)
@@ -110,9 +109,7 @@ class TestAudioBatchCreateRequest:
             AudioBatchCreateRequest(deployment_id=1, audios=[])
 
     def test_one_item_is_valid(self):
-        req = AudioBatchCreateRequest(
-            deployment_id=1, audios=[self._make_item()]
-        )
+        req = AudioBatchCreateRequest(deployment_id=1, audios=[self._make_item()])
         assert len(req.audios) == 1
 
     def test_100_items_is_valid(self):
@@ -167,10 +164,13 @@ class TestCreateAudiosBatchEndpoint:
             MockService.return_value.create_audios_batch.return_value = response
             res = client.post(
                 self.BASE_URL,
-                json={"deployment_id": 1, "audios": [
-                    {"file_name": "a.wav", "object_key": "key/a.wav"},
-                    {"file_name": "b.wav", "object_key": "key/b.wav"},
-                ]},
+                json={
+                    "deployment_id": 1,
+                    "audios": [
+                        {"file_name": "a.wav", "object_key": "key/a.wav"},
+                        {"file_name": "b.wav", "object_key": "key/b.wav"},
+                    ],
+                },
             )
         assert res.status_code == 201
         data = res.json()
@@ -205,10 +205,13 @@ class TestCreateAudiosBatchEndpoint:
             MockService.return_value.create_audios_batch.return_value = response
             res = client.post(
                 self.BASE_URL,
-                json={"deployment_id": 1, "audios": [
-                    {"file_name": "a.wav", "object_key": "key/a.wav"},
-                    {"file_name": "b.wav", "object_key": "key/b.wav"},
-                ]},
+                json={
+                    "deployment_id": 1,
+                    "audios": [
+                        {"file_name": "a.wav", "object_key": "key/a.wav"},
+                        {"file_name": "b.wav", "object_key": "key/b.wav"},
+                    ],
+                },
             )
         assert res.status_code == 207
         data = res.json()
@@ -219,12 +222,17 @@ class TestCreateAudiosBatchEndpoint:
 
     def test_deployment_not_found_returns_404(self, client):
         with patch("app.api.v1.endpoints.api_audio.AudioService") as MockService:
-            MockService.return_value.create_audios_batch.side_effect = DEPLOYMENT_NOT_FOUND
+            MockService.return_value.create_audios_batch.side_effect = (
+                DEPLOYMENT_NOT_FOUND
+            )
             res = client.post(
                 self.BASE_URL,
-                json={"deployment_id": 999, "audios": [
-                    {"file_name": "a.wav", "object_key": "key/a.wav"},
-                ]},
+                json={
+                    "deployment_id": 999,
+                    "audios": [
+                        {"file_name": "a.wav", "object_key": "key/a.wav"},
+                    ],
+                },
             )
         assert res.status_code == 404
         assert res.json()["message"] == "Deployment not found"
@@ -238,8 +246,7 @@ class TestCreateAudiosBatchEndpoint:
 
     def test_over_100_audios_returns_422(self, client):
         audios = [
-            {"file_name": f"{i}.wav", "object_key": f"key/{i}.wav"}
-            for i in range(101)
+            {"file_name": f"{i}.wav", "object_key": f"key/{i}.wav"} for i in range(101)
         ]
         res = client.post(
             self.BASE_URL,
@@ -267,9 +274,12 @@ class TestCreateAudiosBatchEndpoint:
             MockService.return_value.create_audios_batch.return_value = response
             res = client.post(
                 self.BASE_URL,
-                json={"deployment_id": 1, "audios": [
-                    {"file_name": "a.wav", "object_key": "key/a.wav"},
-                ]},
+                json={
+                    "deployment_id": 1,
+                    "audios": [
+                        {"file_name": "a.wav", "object_key": "key/a.wav"},
+                    ],
+                },
             )
         assert res.status_code == 207
         result = res.json()["results"][0]
@@ -284,9 +294,12 @@ class TestCreateAudiosBatchEndpoint:
             )
             res = client.post(
                 self.BASE_URL,
-                json={"deployment_id": 1, "audios": [
-                    {"file_name": "a.wav", "object_key": "key/a.wav"},
-                ]},
+                json={
+                    "deployment_id": 1,
+                    "audios": [
+                        {"file_name": "a.wav", "object_key": "key/a.wav"},
+                    ],
+                },
             )
         assert res.status_code == 409
 

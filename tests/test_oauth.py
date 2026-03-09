@@ -2,12 +2,7 @@
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
-from app.core.auth import get_current_user
 from app.core.config import settings
-from app.enums.enums import UserRole
-from app.main import app
 
 
 class TestGoogleOAuthAuthorize:
@@ -56,9 +51,7 @@ class TestGoogleOAuthCallback:
 
     def test_callback_new_user(self, client, mock_db):
         """Test callback for new user registration."""
-        with patch(
-            "app.api.v1.endpoints.api_oauth.OAuthService"
-        ) as MockService:
+        with patch("app.api.v1.endpoints.api_oauth.OAuthService") as MockService:
             mock_service = MockService.return_value
             mock_user = MagicMock()
             mock_user.email = "newuser@gmail.com"
@@ -80,9 +73,7 @@ class TestGoogleOAuthCallback:
 
     def test_callback_existing_user(self, client, mock_db):
         """Test callback for existing user login."""
-        with patch(
-            "app.api.v1.endpoints.api_oauth.OAuthService"
-        ) as MockService:
+        with patch("app.api.v1.endpoints.api_oauth.OAuthService") as MockService:
             mock_service = MockService.return_value
             mock_user = MagicMock()
             mock_user.email = "existing@gmail.com"
@@ -105,9 +96,7 @@ class TestGoogleOAuthCallback:
         """Test callback with invalid authorization code."""
         from fastapi import HTTPException
 
-        with patch(
-            "app.api.v1.endpoints.api_oauth.OAuthService"
-        ) as MockService:
+        with patch("app.api.v1.endpoints.api_oauth.OAuthService") as MockService:
             mock_service = MockService.return_value
             mock_service.authenticate_with_google.side_effect = HTTPException(
                 status_code=401, detail="Failed to exchange authorization code"

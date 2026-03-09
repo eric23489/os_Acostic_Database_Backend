@@ -1,19 +1,20 @@
+from geoalchemy2 import Geometry
 from sqlalchemy import (
+    Boolean,
     Column,
+    Computed,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
     Integer,
     String,
-    Float,
     Text,
-    DateTime,
-    ForeignKey,
-    Boolean,
-    Index,
     text,
 )
-from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
-from sqlalchemy import Computed
-from geoalchemy2 import Geometry
+from sqlalchemy.sql import func
+
 from app.db.base import Base
 
 
@@ -28,7 +29,10 @@ class PointInfo(Base):
     deployments = relationship(
         "DeploymentInfo",
         back_populates="point",
-        primaryjoin="and_(PointInfo.id==DeploymentInfo.point_id, DeploymentInfo.is_deleted==False)",
+        primaryjoin=(
+            "and_(PointInfo.id==DeploymentInfo.point_id,"
+            " DeploymentInfo.is_deleted==False)"
+        ),
     )
     name = Column(String(50), nullable=False)
     gps_lat_plan = Column(Float)

@@ -1,7 +1,7 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, text
-from sqlalchemy.sql import func
-from sqlalchemy import Index
+from sqlalchemy import Boolean, Column, DateTime, Index, Integer, String, Text, text
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
+
 from app.db.base import Base
 
 
@@ -35,7 +35,9 @@ class ProjectInfo(Base):
     points = relationship(
         "PointInfo",
         back_populates="project",
-        primaryjoin="and_(ProjectInfo.id==PointInfo.project_id, PointInfo.is_deleted==False)",
+        primaryjoin=(
+            "and_(ProjectInfo.id==PointInfo.project_id, PointInfo.is_deleted==False)"
+        ),
     )
 
     __table_args__ = (

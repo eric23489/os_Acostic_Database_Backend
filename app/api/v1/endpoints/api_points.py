@@ -8,8 +8,8 @@ from app.core.exceptions import (
     POINT_NOT_FOUND,
 )
 from app.db.session import get_db
-from app.models.point import PointInfo
 from app.enums.enums import UserRole
+from app.models.point import PointInfo
 from app.schemas.pagination import PaginatedResponse, SortOrder
 from app.schemas.point import (
     PointCreate,

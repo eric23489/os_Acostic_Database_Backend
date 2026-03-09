@@ -9,10 +9,11 @@
 所有測試使用 mock，不連接真實資料庫。
 """
 
-from datetime import datetime, timedelta, timezone
-from unittest.mock import MagicMock, patch, call
+from datetime import UTC, datetime, timedelta
+from unittest.mock import MagicMock
 
 import pytest
+
 from app.core.exceptions import AppException
 from app.enums.enums import UserRole
 from app.services.audio_service import AudioService
@@ -20,7 +21,6 @@ from app.services.deployment_service import DeploymentService
 from app.services.point_service import PointService
 from app.services.project_service import ProjectService
 from app.services.recorder_service import RecorderService
-
 
 # =============================================================================
 # ProjectService 軟刪除測試
@@ -48,9 +48,7 @@ class TestProjectServiceDelete:
         mock_project.is_deleted = False
 
         # 模擬查詢回傳專案
-        mock_db.query.return_value.filter.return_value.filter.return_value.first.return_value = (
-            mock_project
-        )
+        mock_db.query.return_value.filter.return_value.filter.return_value.first.return_value = mock_project
         # 模擬子查詢
         mock_db.query.return_value.filter.return_value.update.return_value = 0
 
@@ -78,9 +76,7 @@ class TestProjectServiceDelete:
         mock_project.is_deleted = False
 
         # 模擬查詢結果
-        mock_db.query.return_value.filter.return_value.filter.return_value.first.return_value = (
-            mock_project
-        )
+        mock_db.query.return_value.filter.return_value.filter.return_value.first.return_value = mock_project
 
         # 執行刪除
         service.delete_project(1, user_id=1)
@@ -100,9 +96,7 @@ class TestProjectServiceDelete:
         service = ProjectService(mock_db)
 
         # 模擬查詢回傳 None
-        mock_db.query.return_value.filter.return_value.filter.return_value.first.return_value = (
-            None
-        )
+        mock_db.query.return_value.filter.return_value.filter.return_value.first.return_value = None
 
         with pytest.raises(AppException) as exc_info:
             service.delete_project(999, user_id=1)
@@ -124,7 +118,7 @@ class TestProjectServiceRestore:
         """
         service = ProjectService(mock_db)
 
-        deleted_at = datetime.now(timezone.utc) - timedelta(minutes=5)
+        deleted_at = datetime.now(UTC) - timedelta(minutes=5)
         mock_project = MagicMock()
         mock_project.id = 1
         mock_project.name = "test-project"
@@ -170,16 +164,14 @@ class TestProjectServiceRestore:
         mock_project.name = "duplicate-name"
         mock_project.name_zh = None
         mock_project.is_deleted = True
-        mock_project.deleted_at = datetime.now(timezone.utc)
+        mock_project.deleted_at = datetime.now(UTC)
 
         mock_existing = MagicMock()  # 代表已存在的同名專案
 
         # 第一次查詢找到要還原的專案
         mock_db.query.return_value.filter.return_value.first.return_value = mock_project
         # 第二次查詢發現名稱衝突
-        mock_db.query.return_value.filter.return_value.filter.return_value.filter.return_value.first.return_value = (
-            mock_existing
-        )
+        mock_db.query.return_value.filter.return_value.filter.return_value.filter.return_value.first.return_value = mock_existing
 
         with pytest.raises(AppException) as exc_info:
             service.restore_project(1)
@@ -201,7 +193,7 @@ class TestProjectServiceDeleteAudios:
         """
         service = ProjectService(mock_db)
 
-        deleted_at = datetime.now(timezone.utc)
+        deleted_at = datetime.now(UTC)
         user_id = 1
         project_id = 1
 
@@ -346,7 +338,7 @@ class TestDeploymentServiceRestore:
         """
         service = DeploymentService(mock_db)
 
-        deleted_at = datetime.now(timezone.utc) - timedelta(minutes=5)
+        deleted_at = datetime.now(UTC) - timedelta(minutes=5)
         mock_deployment = MagicMock()
         mock_deployment.id = 1
         mock_deployment.point_id = 1
@@ -361,9 +353,7 @@ class TestDeploymentServiceRestore:
             mock_deployment
         )
         # 第二次查詢發現階段衝突
-        mock_db.query.return_value.filter.return_value.filter.return_value.filter.return_value.filter.return_value.first.return_value = (
-            mock_existing
-        )
+        mock_db.query.return_value.filter.return_value.filter.return_value.filter.return_value.filter.return_value.first.return_value = mock_existing
 
         with pytest.raises(AppException) as exc_info:
             service.restore_deployment(1)
@@ -478,9 +468,7 @@ class TestAudioServiceRestore:
         # 第一次查詢找到要還原的音檔
         mock_db.query.return_value.filter.return_value.first.return_value = mock_audio
         # 第二次查詢發現衝突
-        mock_db.query.return_value.filter.return_value.filter.return_value.filter.return_value.first.return_value = (
-            mock_existing
-        )
+        mock_db.query.return_value.filter.return_value.filter.return_value.filter.return_value.first.return_value = mock_existing
 
         mock_current_user = MagicMock()
         mock_current_user.id = 1
@@ -588,9 +576,7 @@ class TestRecorderServiceRestore:
             mock_recorder
         )
         # 第二次查詢發現衝突
-        mock_db.query.return_value.filter.return_value.filter.return_value.filter.return_value.filter.return_value.filter.return_value.first.return_value = (
-            mock_existing
-        )
+        mock_db.query.return_value.filter.return_value.filter.return_value.filter.return_value.filter.return_value.filter.return_value.first.return_value = mock_existing
 
         with pytest.raises(AppException) as exc_info:
             service.restore_recorder(1)

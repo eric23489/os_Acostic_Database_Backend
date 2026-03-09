@@ -15,8 +15,8 @@ from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
-from app.core.exceptions import AppException
 
+from app.core.exceptions import AppException
 from app.schemas.point import PointCreate, PointUpdate
 from app.services.point_service import PointService
 

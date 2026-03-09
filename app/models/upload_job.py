@@ -4,10 +4,9 @@
 用于追踪批量音档上传的状态。
 """
 
-from datetime import datetime
 from uuid import uuid4
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, JSON, String, Text
+from sqlalchemy import JSON, Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -64,9 +63,7 @@ class UploadTask(Base):
     presigned_url = Column(Text, nullable=True)
     url_expires_at = Column(DateTime(timezone=True), nullable=True)
 
-    audio_id = Column(
-        Integer, ForeignKey("audio_info.id"), nullable=False, index=True
-    )
+    audio_id = Column(Integer, ForeignKey("audio_info.id"), nullable=False, index=True)
     error_message = Column(Text, nullable=True)
     retry_count = Column(Integer, default=0)
 

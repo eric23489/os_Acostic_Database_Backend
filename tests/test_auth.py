@@ -1,14 +1,14 @@
 """Unit tests for auth functions."""
 
+from datetime import UTC, datetime, timedelta
+from unittest.mock import MagicMock
+
+import jwt
 import pytest
-from datetime import datetime, timedelta, timezone
-from unittest.mock import MagicMock, patch
 
-from app.core.exceptions import AppException
-from jose import jwt
-
-from app.core.auth import get_current_user, get_current_admin_user
+from app.core.auth import get_current_admin_user, get_current_user
 from app.core.config import settings
+from app.core.exceptions import AppException
 from app.enums.enums import UserRole
 
 
@@ -23,7 +23,7 @@ class TestGetCurrentUser:
         mock_db.query.return_value.filter.return_value.first.return_value = mock_user
 
         # Create valid token
-        expire = datetime.now(timezone.utc) + timedelta(minutes=30)
+        expire = datetime.now(UTC) + timedelta(minutes=30)
         token = jwt.encode(
             {"sub": "test@example.com", "exp": expire},
             settings.secret_key,
@@ -50,7 +50,7 @@ class TestGetCurrentUser:
         mock_db = MagicMock()
 
         # Create expired token
-        expire = datetime.now(timezone.utc) - timedelta(minutes=30)
+        expire = datetime.now(UTC) - timedelta(minutes=30)
         token = jwt.encode(
             {"sub": "test@example.com", "exp": expire},
             settings.secret_key,
@@ -67,7 +67,7 @@ class TestGetCurrentUser:
         mock_db = MagicMock()
 
         # Create token without 'sub' field
-        expire = datetime.now(timezone.utc) + timedelta(minutes=30)
+        expire = datetime.now(UTC) + timedelta(minutes=30)
         token = jwt.encode(
             {"exp": expire},  # No 'sub' field
             settings.secret_key,
@@ -85,7 +85,7 @@ class TestGetCurrentUser:
         mock_db.query.return_value.filter.return_value.first.return_value = None
 
         # Create valid token
-        expire = datetime.now(timezone.utc) + timedelta(minutes=30)
+        expire = datetime.now(UTC) + timedelta(minutes=30)
         token = jwt.encode(
             {"sub": "notfound@example.com", "exp": expire},
             settings.secret_key,
@@ -105,7 +105,7 @@ class TestGetCurrentUser:
         mock_db.query.return_value.filter.return_value.first.return_value = mock_user
 
         # Create valid token
-        expire = datetime.now(timezone.utc) + timedelta(minutes=30)
+        expire = datetime.now(UTC) + timedelta(minutes=30)
         token = jwt.encode(
             {"sub": "inactive@example.com", "exp": expire},
             settings.secret_key,
@@ -123,7 +123,7 @@ class TestGetCurrentUser:
         mock_db = MagicMock()
 
         # Create token with different algorithm
-        expire = datetime.now(timezone.utc) + timedelta(minutes=30)
+        expire = datetime.now(UTC) + timedelta(minutes=30)
         token = jwt.encode(
             {"sub": "test@example.com", "exp": expire},
             "different_secret",  # Different secret

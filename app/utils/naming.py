@@ -1,7 +1,8 @@
-import re
 import random
+import re
 import string
-from pypinyin import pinyin, Style
+
+from pypinyin import Style, pinyin
 
 
 def generate_slug_from_zh(text: str) -> str:

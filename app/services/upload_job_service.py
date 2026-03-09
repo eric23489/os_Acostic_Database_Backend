@@ -109,7 +109,10 @@ class UploadJobService:
                 skipped_files.append(
                     SkippedFileInfo(
                         name=file_info.name,
-                        reason="Invalid filename format: expected {sn}.{YYMMDDHHMMSS}.{ext}",
+                        reason=(
+                            "Invalid filename format:"
+                            " expected {sn}.{YYMMDDHHMMSS}.{ext}"
+                        ),
                     )
                 )
 
@@ -133,7 +136,9 @@ class UploadJobService:
                 skipped_files.append(
                     SkippedFileInfo(
                         name=file_info.name,
-                        reason=f"Recorder SN '{parsed.recorder_sn}' not found in system",
+                        reason=(
+                            f"Recorder SN '{parsed.recorder_sn}' not found in system"
+                        ),
                     )
                 )
             else:
@@ -210,7 +215,7 @@ class UploadJobService:
             self.db.flush()  # 取得 audio.id
         except IntegrityError:
             self.db.rollback()
-            raise AUDIO_CONCURRENT_CONFLICT
+            raise AUDIO_CONCURRENT_CONFLICT from None
 
         # 7. 建立 Job
         job = UploadJob(
@@ -424,9 +429,10 @@ class UploadJobService:
             self.db.rollback()
             logger.critical(
                 "complete_task DB commit failed. task_id=%s error=%s",
-                task_id, e,
+                task_id,
+                e,
             )
-            raise MINIO_UPLOAD_FAILED
+            raise MINIO_UPLOAD_FAILED from e
         logger.info("Completed simple upload for task %s", task_id)
 
     # =========================================================================
@@ -551,19 +557,24 @@ class UploadJobService:
                     {
                         "PartNumber": p.part_number,
                         "ETag": p.etag,
-                        **({"ChecksumSHA256": p.checksum_sha256} if p.checksum_sha256 else {}),
+                        **(
+                            {"ChecksumSHA256": p.checksum_sha256}
+                            if p.checksum_sha256
+                            else {}
+                        ),
                     }
                     for p in parts
                 ],
             )
         except ClientError as e:
             logger.error(
-                "MinIO complete_multipart_upload failed. object_key=%s upload_id=%s error=%s",
+                "MinIO complete_multipart_upload failed."
+                " object_key=%s upload_id=%s error=%s",
                 task.object_key,
                 task.upload_id,
                 e,
             )
-            raise MINIO_UPLOAD_FAILED
+            raise MINIO_UPLOAD_FAILED from e
 
         # 2. 更新 Task 状态
         task.status = TaskStatus.COMPLETED
@@ -647,7 +658,7 @@ class UploadJobService:
                 task.upload_id,
                 e,
             )
-            raise MINIO_UPLOAD_FAILED
+            raise MINIO_UPLOAD_FAILED from e
 
         logger.info("Completed multipart upload for task %s", task_id)
 
@@ -683,15 +694,11 @@ class UploadJobService:
         task = self._get_task(job_id, task_id, user_id)
 
         completed_parts = (
-            sorted([int(p) for p in task.part_etags.keys()])
-            if task.part_etags
-            else []
+            sorted([int(p) for p in task.part_etags.keys()]) if task.part_etags else []
         )
 
         remaining_parts = [
-            p
-            for p in range(1, (task.total_parts or 0) + 1)
-            if p not in completed_parts
+            p for p in range(1, (task.total_parts or 0) + 1) if p not in completed_parts
         ]
 
         return TaskProgressResponse(

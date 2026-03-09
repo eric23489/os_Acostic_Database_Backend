@@ -1,11 +1,12 @@
 import logging
 import time
 import uuid
-from typing import Callable
+from collections.abc import Callable
 
+import jwt
 from fastapi import Request
 from fastapi.responses import Response
-from jose import JWTError, jwt
+from jwt import PyJWTError
 
 from app.core.config import settings
 
@@ -23,7 +24,7 @@ def extract_user_identity(request: Request) -> str:
             token, settings.secret_key, algorithms=[settings.algorithm]
         )
         return payload.get("sub") or "anonymous"
-    except JWTError:
+    except PyJWTError:
         return "anonymous"
 
 

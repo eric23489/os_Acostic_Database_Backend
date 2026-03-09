@@ -11,7 +11,6 @@ Hard Delete 功能測試模組。
 所有測試使用 mock，不連接真實資料庫或 MinIO。
 """
 
-from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -20,7 +19,6 @@ from fastapi import HTTPException
 from app.core.config import settings
 from app.core.exceptions import AppException
 from app.enums.enums import UserRole
-
 
 # =============================================================================
 # Fixtures
@@ -75,9 +73,7 @@ class TestProjectHardDelete:
         - Service 的 hard_delete_project 方法被呼叫
         - 回傳成功訊息
         """
-        with patch(
-            "app.api.v1.endpoints.api_projects.ProjectService"
-        ) as MockService:
+        with patch("app.api.v1.endpoints.api_projects.ProjectService") as MockService:
             mock_service = MockService.return_value
             mock_service.hard_delete_project.return_value = {
                 "message": "Project 'test-project' permanently deleted",
@@ -97,9 +93,7 @@ class TestProjectHardDelete:
         預期行為：
         - API 回傳 404 狀態碼
         """
-        with patch(
-            "app.api.v1.endpoints.api_projects.ProjectService"
-        ) as MockService:
+        with patch("app.api.v1.endpoints.api_projects.ProjectService") as MockService:
             mock_service = MockService.return_value
             mock_service.hard_delete_project.side_effect = HTTPException(
                 status_code=404, detail="Project not found"
@@ -131,9 +125,7 @@ class TestPointHardDelete:
 
     def test_hard_delete_point_success(self, client):
         """測試成功永久刪除測站。"""
-        with patch(
-            "app.api.v1.endpoints.api_points.PointService"
-        ) as MockService:
+        with patch("app.api.v1.endpoints.api_points.PointService") as MockService:
             mock_service = MockService.return_value
             mock_service.hard_delete_point.return_value = {
                 "message": "Point 'test-point' permanently deleted",
@@ -203,9 +195,7 @@ class TestAudioHardDelete:
 
     def test_hard_delete_audio_success(self, client):
         """測試成功永久刪除音檔。"""
-        with patch(
-            "app.api.v1.endpoints.api_audio.AudioService"
-        ) as MockService:
+        with patch("app.api.v1.endpoints.api_audio.AudioService") as MockService:
             mock_service = MockService.return_value
             mock_service.hard_delete_audio.return_value = {
                 "message": "Audio permanently deleted"
@@ -239,9 +229,7 @@ class TestRecorderHardDelete:
 
     def test_hard_delete_recorder_success(self, client):
         """測試成功永久刪除 Recorder。"""
-        with patch(
-            "app.api.v1.endpoints.api_recorders.RecorderService"
-        ) as MockService:
+        with patch("app.api.v1.endpoints.api_recorders.RecorderService") as MockService:
             mock_service = MockService.return_value
             mock_service.hard_delete_recorder.return_value = {
                 "message": "Recorder 'SoundTrap/ST600/SN12345' permanently deleted"
@@ -255,9 +243,7 @@ class TestRecorderHardDelete:
 
     def test_hard_delete_recorder_not_found(self, client):
         """測試刪除不存在的 Recorder。"""
-        with patch(
-            "app.api.v1.endpoints.api_recorders.RecorderService"
-        ) as MockService:
+        with patch("app.api.v1.endpoints.api_recorders.RecorderService") as MockService:
             mock_service = MockService.return_value
             mock_service.hard_delete_recorder.side_effect = HTTPException(
                 status_code=404, detail="Recorder not found"
@@ -269,9 +255,7 @@ class TestRecorderHardDelete:
 
     def test_hard_delete_recorder_with_deployments_fails(self, client):
         """測試刪除有 Deployment 引用的 Recorder 會失敗。"""
-        with patch(
-            "app.api.v1.endpoints.api_recorders.RecorderService"
-        ) as MockService:
+        with patch("app.api.v1.endpoints.api_recorders.RecorderService") as MockService:
             mock_service = MockService.return_value
             mock_service.hard_delete_recorder.side_effect = HTTPException(
                 status_code=400,
@@ -366,8 +350,12 @@ class TestRecorderServiceHardDelete:
         mock_recorder.sn = "SN12345"
 
         # Setup query chain
-        mock_db.query.return_value.filter.return_value.first.return_value = mock_recorder
-        mock_db.query.return_value.filter.return_value.count.return_value = 0  # 沒有 Deployment
+        mock_db.query.return_value.filter.return_value.first.return_value = (
+            mock_recorder
+        )
+        mock_db.query.return_value.filter.return_value.count.return_value = (
+            0  # 沒有 Deployment
+        )
 
         from app.services.recorder_service import RecorderService
 
@@ -390,7 +378,9 @@ class TestRecorderServiceHardDelete:
         mock_recorder.sn = "SN12345"
 
         # Setup query chain - 有 3 個 Deployment 引用
-        mock_db.query.return_value.filter.return_value.first.return_value = mock_recorder
+        mock_db.query.return_value.filter.return_value.first.return_value = (
+            mock_recorder
+        )
         mock_db.query.return_value.filter.return_value.count.return_value = 3
 
         from app.services.recorder_service import RecorderService
@@ -512,7 +502,9 @@ class TestHardDeleteErrorHandling:
             mock_project.name = "test-project"
 
             # Mock 空的 Audio 列表
-            mock_db.query.return_value.filter.return_value.first.return_value = mock_project
+            mock_db.query.return_value.filter.return_value.first.return_value = (
+                mock_project
+            )
             mock_db.query.return_value.filter.return_value.all.return_value = []
             mock_db.query.return_value.filter.return_value.delete.return_value = 0
 
@@ -546,7 +538,9 @@ class TestHardDeleteErrorHandling:
             mock_project.name = "empty-project"
 
             # Mock 空的 Audio 列表
-            mock_db.query.return_value.filter.return_value.first.return_value = mock_project
+            mock_db.query.return_value.filter.return_value.first.return_value = (
+                mock_project
+            )
             mock_db.query.return_value.filter.return_value.all.return_value = []  # 空
             mock_db.query.return_value.filter.return_value.delete.return_value = 0
 
@@ -584,11 +578,11 @@ class TestHardDeleteBatchProcessing:
             mock_project.name = "large-project"
 
             # Mock 1500 個 Audio keys (yield_per returns tuples)
-            mock_audio_keys = [
-                (f"point/2024/01/audio_{i}.wav",) for i in range(1500)
-            ]
+            mock_audio_keys = [(f"point/2024/01/audio_{i}.wav",) for i in range(1500)]
 
-            mock_db.query.return_value.filter.return_value.first.return_value = mock_project
+            mock_db.query.return_value.filter.return_value.first.return_value = (
+                mock_project
+            )
             # Mock yield_per iterator for audio keys
             mock_db.query.return_value.filter.return_value.yield_per.return_value = (
                 iter(mock_audio_keys)
@@ -647,7 +641,9 @@ class TestNameRelease:
                 mock_result.first.return_value = mock_deleted
             return mock_result
 
-        mock_db.query.return_value.filter.return_value.filter.side_effect = filter_side_effect
+        mock_db.query.return_value.filter.return_value.filter.side_effect = (
+            filter_side_effect
+        )
 
         from app.schemas.project import ProjectCreate
 

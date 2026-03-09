@@ -1,15 +1,17 @@
-import sys
 import os
+import sys
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from unittest.mock import MagicMock
+
 import pytest
-from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
-from app.main import app
+
 from app.core.auth import get_current_user
 from app.db.session import get_db
 from app.enums.enums import UserRole
+from app.main import app
 
 
 @pytest.fixture
@@ -40,5 +42,3 @@ def client(mock_db, mock_current_user):
     with TestClient(app) as c:
         yield c
     app.dependency_overrides.clear()
-
-

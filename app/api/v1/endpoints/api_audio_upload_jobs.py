@@ -45,7 +45,9 @@ def create_upload_job(
     """
     result = UploadJobService(db).create_job(request, current_user.id)
     response.status_code = (
-        status.HTTP_207_MULTI_STATUS if result.skipped_files else status.HTTP_201_CREATED
+        status.HTTP_207_MULTI_STATUS
+        if result.skipped_files
+        else status.HTTP_201_CREATED
     )
     return result
 

@@ -1,9 +1,10 @@
-from unittest.mock import patch, MagicMock
-from app.schemas.user import UserResponse, Token
-from app.enums.enums import UserRole
+from unittest.mock import MagicMock, patch
+
 from app.core.auth import get_current_user
-from app.main import app
 from app.core.config import settings
+from app.enums.enums import UserRole
+from app.main import app
+from app.schemas.user import UserResponse
 
 
 def test_create_user(client):

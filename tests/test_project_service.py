@@ -3,9 +3,9 @@ from unittest.mock import MagicMock
 import pytest
 
 from app.core.exceptions import AppException
-from app.services.project_service import ProjectService
-from app.schemas.project import ProjectCreate
 from app.models.project import ProjectInfo
+from app.schemas.project import ProjectCreate
+from app.services.project_service import ProjectService
 
 
 def test_create_project_autogenerate_name(mock_db):

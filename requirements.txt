@@ -6,7 +6,7 @@ pydantic
 pydantic-settings
 geoalchemy2
 bcrypt
-python-jose[cryptography]
+PyJWT
 pytest
 boto3
 moto[s3]

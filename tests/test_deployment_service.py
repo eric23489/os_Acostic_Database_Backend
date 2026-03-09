@@ -15,8 +15,8 @@ from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
-from app.core.exceptions import AppException
 
+from app.core.exceptions import AppException
 from app.enums.enums import DeploymentStatus
 from app.schemas.deployment import DeploymentCreate, DeploymentUpdate
 from app.services.deployment_service import DeploymentService

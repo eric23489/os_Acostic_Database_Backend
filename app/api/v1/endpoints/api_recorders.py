@@ -8,8 +8,8 @@ from app.core.exceptions import (
     RECORDER_NOT_FOUND,
 )
 from app.db.session import get_db
-from app.models.recorder import RecorderInfo
 from app.enums.enums import UserRole
+from app.models.recorder import RecorderInfo
 from app.schemas.pagination import PaginatedResponse, SortOrder
 from app.schemas.recorder import RecorderCreate, RecorderResponse, RecorderUpdate
 from app.services.recorder_service import RecorderService

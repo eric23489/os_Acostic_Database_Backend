@@ -8,8 +8,8 @@ from app.core.exceptions import (
     PERMISSION_RESTORE_DENIED,
 )
 from app.db.session import get_db
-from app.models.deployment import DeploymentInfo
 from app.enums.enums import UserRole
+from app.models.deployment import DeploymentInfo
 from app.schemas.deployment import (
     DeploymentCreate,
     DeploymentResponse,
