@@ -3,7 +3,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_user
-from app.core.exceptions import AUTH_INCORRECT_CREDENTIALS, PERMISSION_DENIED
+from app.core.exceptions import AUTH_INCORRECT_CREDENTIALS, PERMISSION_ADMIN_REQUIRED
 from app.core.security import create_access_token
 from app.db.session import get_db
 from app.enums.enums import UserRole
@@ -69,7 +69,7 @@ def read_users(
     - **order**: 排序方向 (asc, desc)
     """
     if current_user.role != UserRole.ADMIN.value:
-        raise PERMISSION_DENIED
+        raise PERMISSION_ADMIN_REQUIRED
     items, total = UserService(db).get_users(
         skip=skip,
         limit=limit,
@@ -101,7 +101,7 @@ def update_user(
 ):
     """Admin update data."""
     if current_user.role != UserRole.ADMIN.value:
-        raise PERMISSION_DENIED
+        raise PERMISSION_ADMIN_REQUIRED
     return UserService(db).update_user(user_id, user_in)
 
 
@@ -113,7 +113,7 @@ def delete_user(
 ):
     """Admin delete user (soft delete)."""
     if current_user.role != UserRole.ADMIN.value:
-        raise PERMISSION_DENIED
+        raise PERMISSION_ADMIN_REQUIRED
     return UserService(db).delete_user(user_id, current_user.id)
 
 
@@ -125,7 +125,7 @@ def restore_user(
 ):
     """Admin restore user."""
     if current_user.role != UserRole.ADMIN.value:
-        raise PERMISSION_DENIED
+        raise PERMISSION_ADMIN_REQUIRED
     return UserService(db).restore_user(user_id)
 
 

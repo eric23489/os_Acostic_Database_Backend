@@ -153,7 +153,6 @@ assert exc_info.value.error_code == "FOO_BAR_ERROR"
 | `RECORDER_NOT_FOUND` | 404 | Recorder not found |
 | `RECORDER_IDENTIFIER_DUPLICATE` | 400 | Active recorder with this brand/model/sn already exists. |
 | `RECORDER_IDENTIFIER_RESERVED` | 400 | Identifier reserved by deleted recorder. Hard delete to release. |
-| `RECORDER_IDENTIFIER_COLLISION` | 400 | Active recorder with this brand/model/sn already exists. Cannot restore. |
 | `RECORDER_HAS_DEPLOYMENTS` | 400 | Cannot delete recorder: deployments reference this recorder. Delete deployments first. |
 
 ---
@@ -208,11 +207,11 @@ assert exc_info.value.error_code == "FOO_BAR_ERROR"
 
 | HTTP Status | 數量 | 說明 |
 |-------------|------|------|
-| 400 Bad Request | 23 | 驗證失敗、重複、衝突 |
+| 400 Bad Request | 22 | 驗證失敗、重複、衝突 |
 | 401 Unauthorized | 3 | 認證失敗 |
 | 403 Forbidden | 3 | 權限不足 |
 | 404 Not Found | 8 | 資源不存在 |
 | 409 Conflict | 1 | 並發衝突 |
 | 500 Server Error | 4 | 伺服器錯誤 |
 | 502 Bad Gateway | 3 | 外部儲存錯誤 |
-| **合計** | **45** | 45 AppException + 0 HTTPException |
+| **合計** | **44** | 44 AppException + 0 HTTPException |

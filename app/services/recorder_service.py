@@ -1,11 +1,10 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import exists
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import (
     RECORDER_HAS_DEPLOYMENTS,
-    RECORDER_IDENTIFIER_COLLISION,
     RECORDER_IDENTIFIER_DUPLICATE,
     RECORDER_IDENTIFIER_RESERVED,
     RECORDER_NOT_FOUND,
@@ -75,14 +74,14 @@ class RecorderService:
 
         # 排序
         allowed_sort_fields = ["brand", "model", "sn", "created_at"]
-        query = apply_sorting(
-            query, RecorderInfo, sort_by, order, allowed_sort_fields
-        )
+        query = apply_sorting(query, RecorderInfo, sort_by, order, allowed_sort_fields)
 
         # 分頁
         return paginate(query, skip, limit)
 
-    def check_soft_deleted_recorder_exists(self, brand: str, model: str, sn: str) -> bool:
+    def check_soft_deleted_recorder_exists(
+        self, brand: str, model: str, sn: str
+    ) -> bool:
         """檢查是否有軟刪除的 Recorder 佔用此識別碼。"""
         return self.db.query(
             exists().where(
@@ -154,7 +153,7 @@ class RecorderService:
     def delete_recorder(self, recorder_id: int, user_id: int) -> RecorderInfo:
         recorder = self.get_recorder(recorder_id)
         recorder.is_deleted = True
-        recorder.deleted_at = datetime.now(timezone.utc)
+        recorder.deleted_at = datetime.now(UTC)
         recorder.deleted_by = user_id
         self.db.add(recorder)
         self.db.commit()
@@ -180,7 +179,7 @@ class RecorderService:
             )
             .first()
         ):
-            raise RECORDER_IDENTIFIER_COLLISION
+            raise RECORDER_IDENTIFIER_DUPLICATE
 
         recorder.is_deleted = False
         recorder.deleted_at = None

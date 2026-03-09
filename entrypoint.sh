@@ -2,7 +2,7 @@
 
 # 1. 先執行資料庫遷移
 echo "Running Database Migrations..."
-alembic upgrade heads
+alembic upgrade head
 
 # 2. 啟動 FastAPI 服務
 echo "Starting Server..."

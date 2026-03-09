@@ -223,11 +223,6 @@ RECORDER_HAS_DEPLOYMENTS = AppException(
     message="Cannot delete recorder: deployments reference this recorder. Delete deployments first.",  # noqa: E501
     http_status=status.HTTP_400_BAD_REQUEST,
 )
-RECORDER_IDENTIFIER_COLLISION = AppException(
-    error_code="RECORDER_IDENTIFIER_COLLISION",
-    message="Active recorder with this brand/model/sn already exists. Cannot restore.",
-    http_status=status.HTTP_400_BAD_REQUEST,
-)
 
 # ── User ─────────────────────────────────────────────────
 USER_NOT_FOUND = AppException(
