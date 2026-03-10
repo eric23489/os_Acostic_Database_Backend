@@ -1,6 +1,5 @@
 """Password reset related Pydantic schemas."""
 
-
 from pydantic import BaseModel, EmailStr, Field
 
 

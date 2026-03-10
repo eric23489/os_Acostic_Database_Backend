@@ -1,6 +1,6 @@
 """分頁相關的 Schema 定義。"""
 
-from enum import Enum
+from enum import StrEnum
 from typing import Generic, TypeVar
 
 from pydantic import BaseModel, Field
@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 T = TypeVar("T")
 
 
-class SortOrder(str, Enum):
+class SortOrder(StrEnum):
     """排序方向。"""
 
     ASC = "asc"

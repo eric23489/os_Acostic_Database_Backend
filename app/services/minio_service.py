@@ -213,9 +213,7 @@ class MinioService:
         )
         return response["Body"].read()
 
-    def abort_multipart_upload(
-        self, bucket: str, key: str, upload_id: str
-    ) -> None:
+    def abort_multipart_upload(self, bucket: str, key: str, upload_id: str) -> None:
         """
         取消分段上传，清理已上传的 parts。
 

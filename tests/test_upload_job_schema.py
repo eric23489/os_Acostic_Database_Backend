@@ -77,8 +77,7 @@ class TestUploadJobCreateRequest:
     def test_too_many_files_raises_error(self):
         """Test that more than 1000 files raises ValidationError."""
         files = [
-            FileInfo(name=f"7505.{240611130000 + i:012d}.wav")
-            for i in range(1001)
+            FileInfo(name=f"7505.{240611130000 + i:012d}.wav") for i in range(1001)
         ]
 
         with pytest.raises(ValidationError):

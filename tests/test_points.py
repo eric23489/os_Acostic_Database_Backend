@@ -28,7 +28,11 @@ def test_get_points_without_project_id(client):
         mock_service.get_points.return_value = (
             [
                 PointResponse(
-                    id=1, project_id=1, name="Point A", gps_lat_plan=23.5, gps_lon_plan=121.5
+                    id=1,
+                    project_id=1,
+                    name="Point A",
+                    gps_lat_plan=23.5,
+                    gps_lon_plan=121.5,
                 )
             ],
             1,

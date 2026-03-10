@@ -114,8 +114,7 @@ class TestEnumDbFieldLengthConstraints:
         max_length = 100
         for role in UserRole:
             assert len(role.value) <= max_length, (
-                f"UserRole.{role.name} value '{role.value}' "
-                f"exceeds {max_length} chars"
+                f"UserRole.{role.name} value '{role.value}' exceeds {max_length} chars"
             )
 
     def test_all_enum_values_are_non_empty(self):
@@ -153,16 +152,14 @@ class TestEnumValueFormat:
         """RecorderStatus 值都是小寫。"""
         for status in RecorderStatus:
             assert status.value == status.value.lower(), (
-                f"RecorderStatus.{status.name} value '{status.value}' "
-                f"is not lowercase"
+                f"RecorderStatus.{status.name} value '{status.value}' is not lowercase"
             )
 
     def test_user_role_values_are_lowercase(self):
         """UserRole 值都是小寫。"""
         for role in UserRole:
             assert role.value == role.value.lower(), (
-                f"UserRole.{role.name} value '{role.value}' "
-                f"is not lowercase"
+                f"UserRole.{role.name} value '{role.value}' is not lowercase"
             )
 
     def test_deployment_status_uses_hyphen_separator(self):

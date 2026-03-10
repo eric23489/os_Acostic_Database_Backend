@@ -122,7 +122,9 @@ class TestAudioUploadIntegration:
         response = api_client.post(
             f"{api_prefix}/audio-upload-jobs/{job_id}/tasks/{task_id}/multipart/complete",
             headers=auth_headers,
-            json={"parts": [{"part_number": 1, "etag": etag, "checksum_sha256": sha256}]},
+            json={
+                "parts": [{"part_number": 1, "etag": etag, "checksum_sha256": sha256}]
+            },
         )
         assert response.status_code == 200, response.json()
 
@@ -229,7 +231,9 @@ class TestAudioUploadIntegration:
             )
             assert upload_response.status_code == 200
             etag = upload_response.headers["ETag"]
-            completed_parts.append({"part_number": part_number, "etag": etag, "checksum_sha256": sha256})
+            completed_parts.append(
+                {"part_number": part_number, "etag": etag, "checksum_sha256": sha256}
+            )
 
         # 5. 回報 Parts 完成
         for part in completed_parts:
@@ -336,7 +340,11 @@ class TestAudioUploadIntegration:
             complete_res = api_client.post(
                 f"{api_prefix}/audio-upload-jobs/{job_id}/tasks/{task_id}/multipart/complete",
                 headers=auth_headers,
-                json={"parts": [{"part_number": 1, "etag": etag, "checksum_sha256": sha256}]},
+                json={
+                    "parts": [
+                        {"part_number": 1, "etag": etag, "checksum_sha256": sha256}
+                    ]
+                },
             )
             assert complete_res.status_code == 200
 
@@ -441,7 +449,9 @@ class TestAudioUploadIntegration:
         response = api_client.post(
             f"{api_prefix}/audio-upload-jobs/{job_id}/tasks/{task_id}/multipart/complete",
             headers=auth_headers,
-            json={"parts": [{"part_number": 1, "etag": etag, "checksum_sha256": sha256}]},
+            json={
+                "parts": [{"part_number": 1, "etag": etag, "checksum_sha256": sha256}]
+            },
         )
         assert response.status_code == 200, response.json()
 
@@ -533,7 +543,9 @@ class TestAudioUploadIntegration:
         api_client.post(
             f"{api_prefix}/audio-upload-jobs/{job_id}/tasks/{task_id}/multipart/complete",
             headers=auth_headers,
-            json={"parts": [{"part_number": 1, "etag": etag, "checksum_sha256": sha256}]},
+            json={
+                "parts": [{"part_number": 1, "etag": etag, "checksum_sha256": sha256}]
+            },
         )
 
         # 取得 AudioInfo ID
