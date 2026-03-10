@@ -13,3 +13,7 @@ class HealthResponse(BaseModel):
     status: Literal["ok", "degraded"]
     db: Literal["ok", "error"]
     minio: Literal["ok", "error"]
+
+
+class MessageResponse(BaseModel):
+    message: str

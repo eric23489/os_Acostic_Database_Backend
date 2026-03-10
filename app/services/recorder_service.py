@@ -4,14 +4,16 @@ from sqlalchemy import exists, func
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import (
+    PERMISSION_RESTORE_DENIED,
     RECORDER_HAS_DEPLOYMENTS,
     RECORDER_IDENTIFIER_DUPLICATE,
     RECORDER_IDENTIFIER_RESERVED,
     RECORDER_NOT_FOUND,
 )
-from app.enums.enums import RecorderStatus
+from app.enums.enums import RecorderStatus, UserRole
 from app.models.deployment import DeploymentInfo
 from app.models.recorder import RecorderInfo
+from app.schemas.common import MessageResponse
 from app.schemas.pagination import SortOrder
 from app.schemas.recorder import RecorderCreate, RecorderStatsResponse, RecorderUpdate
 from app.utils.query import apply_filter, apply_search, apply_sorting, paginate
@@ -65,7 +67,7 @@ class RecorderService:
         skip: int = 0,
         limit: int = 100,
         search: str | None = None,
-        status: str | None = None,
+        status: RecorderStatus | None = None,
         sort_by: str | None = None,
         order: SortOrder = SortOrder.DESC,
     ) -> tuple[list[RecorderInfo], int]:
@@ -164,6 +166,8 @@ class RecorderService:
         ):
             if self.check_recorder_exists(new_brand, new_model, new_sn):
                 raise RECORDER_IDENTIFIER_DUPLICATE
+            if self.check_soft_deleted_recorder_exists(new_brand, new_model, new_sn):
+                raise RECORDER_IDENTIFIER_RESERVED
 
         for field, value in update_data.items():
             setattr(db_recorder, field, value)
@@ -184,12 +188,20 @@ class RecorderService:
         self.db.refresh(recorder)
         return recorder
 
-    def restore_recorder(self, recorder_id: int) -> RecorderInfo:
+    def restore_recorder(
+        self, recorder_id: int, current_user_id: int, current_user_role: str
+    ) -> RecorderInfo:
         recorder = (
             self.db.query(RecorderInfo).filter(RecorderInfo.id == recorder_id).first()
         )
         if not recorder:
             raise RECORDER_NOT_FOUND
+
+        if (
+            current_user_role != UserRole.ADMIN.value
+            and current_user_id != recorder.deleted_by
+        ):
+            raise PERMISSION_RESTORE_DENIED
 
         # Check for unique constraint collision before restore
         if (
@@ -213,7 +225,7 @@ class RecorderService:
         self.db.refresh(recorder)
         return recorder
 
-    def hard_delete_recorder(self, recorder_id: int) -> dict:
+    def hard_delete_recorder(self, recorder_id: int) -> MessageResponse:
         """
         永久刪除 Recorder。
 
@@ -229,13 +241,10 @@ class RecorderService:
         if not recorder:
             raise RECORDER_NOT_FOUND
 
-        # 檢查是否有 Deployment 引用此 Recorder
+        # 檢查是否有 Deployment 引用此 Recorder（含軟刪除）
         deployment_count = (
             self.db.query(DeploymentInfo)
-            .filter(
-                DeploymentInfo.recorder_id == recorder_id,
-                DeploymentInfo.is_deleted.is_(False),
-            )
+            .filter(DeploymentInfo.recorder_id == recorder_id)
             .count()
         )
         if deployment_count > 0:
@@ -248,4 +257,6 @@ class RecorderService:
         self.db.query(RecorderInfo).filter(RecorderInfo.id == recorder_id).delete()
         self.db.commit()
 
-        return {"message": f"Recorder '{recorder_identifier}' permanently deleted"}
+        return MessageResponse(
+            message=f"Recorder '{recorder_identifier}' permanently deleted"
+        )

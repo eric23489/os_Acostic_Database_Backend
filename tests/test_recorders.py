@@ -1,7 +1,11 @@
 from unittest.mock import patch
 
 from app.core.config import settings
-from app.core.exceptions import RECORDER_IDENTIFIER_DUPLICATE
+from app.core.exceptions import (
+    RECORDER_HAS_DEPLOYMENTS,
+    RECORDER_IDENTIFIER_DUPLICATE,
+    RECORDER_IDENTIFIER_RESERVED,
+)
 from app.schemas.recorder import RecorderResponse
 
 
@@ -113,6 +117,33 @@ def test_create_recorder_duplicate(client):
         assert response.status_code == 400
         assert "already exists" in response.json()["message"]
         mock_service.create_recorder.assert_called_once()
+
+
+def test_hard_delete_recorder_blocked_by_soft_deleted_deployment(client):
+    """Issue B：soft-deleted deployment 引用的 recorder 執行 hard delete 應回 400 RECORDER_HAS_DEPLOYMENTS。"""
+    with patch("app.api.v1.endpoints.api_recorders.RecorderService") as MockService:
+        mock_service = MockService.return_value
+        mock_service.hard_delete_recorder.side_effect = RECORDER_HAS_DEPLOYMENTS
+
+        response = client.delete(f"{settings.api_prefix}/recorders/1/permanent")
+        assert response.status_code == 400
+        assert response.json()["error_code"] == "RECORDER_HAS_DEPLOYMENTS"
+        mock_service.hard_delete_recorder.assert_called_once_with(1)
+
+
+def test_update_recorder_with_reserved_identifier(client):
+    """Issue E：PUT 將 brand/model/sn 改為已軟刪除 recorder 保留的識別碼，應回 400 RECORDER_IDENTIFIER_RESERVED。"""
+    with patch("app.api.v1.endpoints.api_recorders.RecorderService") as MockService:
+        mock_service = MockService.return_value
+        mock_service.update_recorder.side_effect = RECORDER_IDENTIFIER_RESERVED
+
+        response = client.put(
+            f"{settings.api_prefix}/recorders/1",
+            json={"brand": "NewBrand", "model": "NewModel", "sn": "RESERVED_SN"},
+        )
+        assert response.status_code == 400
+        assert response.json()["error_code"] == "RECORDER_IDENTIFIER_RESERVED"
+        mock_service.update_recorder.assert_called_once()
 
 
 def test_get_recorder_stats(client):

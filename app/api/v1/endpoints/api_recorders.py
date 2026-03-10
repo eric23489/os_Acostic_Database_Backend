@@ -2,14 +2,10 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_user
-from app.core.exceptions import (
-    PERMISSION_ADMIN_REQUIRED,
-    PERMISSION_RESTORE_DENIED,
-    RECORDER_NOT_FOUND,
-)
+from app.core.exceptions import PERMISSION_ADMIN_REQUIRED
 from app.db.session import get_db
-from app.enums.enums import UserRole
-from app.models.recorder import RecorderInfo
+from app.enums.enums import RecorderStatus, UserRole
+from app.schemas.common import MessageResponse
 from app.schemas.pagination import PaginatedResponse, SortOrder
 from app.schemas.recorder import (
     RecorderCreate,
@@ -45,7 +41,7 @@ def get_recorders(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
     search: str | None = None,
-    recorder_status: str | None = None,
+    recorder_status: RecorderStatus | None = None,
     sort_by: str | None = None,
     order: SortOrder = SortOrder.DESC,
     db: Session = Depends(get_db),
@@ -106,18 +102,12 @@ def restore_recorder(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    recorder = db.query(RecorderInfo).filter(RecorderInfo.id == recorder_id).first()
-    if not recorder:
-        raise RECORDER_NOT_FOUND
-    if (
-        current_user.role != UserRole.ADMIN.value
-        and current_user.id != recorder.deleted_by
-    ):
-        raise PERMISSION_RESTORE_DENIED
-    return RecorderService(db).restore_recorder(recorder_id)
+    return RecorderService(db).restore_recorder(
+        recorder_id, current_user.id, current_user.role
+    )
 
 
-@router.delete("/{recorder_id}/permanent", response_model=dict)
+@router.delete("/{recorder_id}/permanent", response_model=MessageResponse)
 def hard_delete_recorder(
     recorder_id: int,
     db: Session = Depends(get_db),
