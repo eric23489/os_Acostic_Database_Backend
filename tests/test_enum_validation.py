@@ -42,7 +42,7 @@ class TestDeploymentStatusValidation:
         """驗證有效字串值都能通過。"""
         valid_values = [
             "un-deployed",
-            "under-monitoring",
+            "deploying",
             "success",
             "water-intrusion",
             "lost",
@@ -127,7 +127,7 @@ class TestRecorderStatusValidation:
     def test_recorder_status_valid_string_values(self):
         """驗證有效字串值都能通過。"""
         valid_values = [
-            "in-service",
+            "available",
             "out-of-service",
             "under-repair",
             "under-calibration",
@@ -135,6 +135,7 @@ class TestRecorderStatusValidation:
             "retired",
             "lost",
             "checked-out",
+            "deploying",
         ]
         for value in valid_values:
             recorder = RecorderCreate(
@@ -179,14 +180,14 @@ class TestRecorderStatusValidation:
                 )
 
     def test_recorder_status_default_value(self):
-        """status 預設值為 IN_SERVICE。"""
+        """status 預設值為 AVAILABLE。"""
         recorder = RecorderCreate(
             brand="Test",
             model="Model",
             sn="SN123",
             sensitivity=-160.0,
         )
-        assert recorder.status == RecorderStatus.IN_SERVICE
+        assert recorder.status == RecorderStatus.AVAILABLE
 
     def test_recorder_update_status_none_allowed(self):
         """RecorderUpdate 允許 status 為 None。"""
@@ -314,10 +315,10 @@ class TestEnumResponseSerialization:
             model="Model",
             sn="SN123",
             sensitivity=-160.0,
-            status=RecorderStatus.IN_SERVICE,
+            status=RecorderStatus.AVAILABLE,
         )
         data = response.model_dump(mode="json")
-        assert data["status"] == "in-service"
+        assert data["status"] == "available"
         assert isinstance(data["status"], str)
 
     def test_recorder_response_all_status_values(self):

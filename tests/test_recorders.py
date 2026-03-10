@@ -36,7 +36,7 @@ def test_get_recorders_with_search(client):
         )
 
         response = client.get(
-            f"{settings.api_prefix}/recorders/?search=SN123&recorder_status=in-service"
+            f"{settings.api_prefix}/recorders/?search=SN123&recorder_status=available"
         )
         assert response.status_code == 200
         data = response.json()
@@ -113,3 +113,21 @@ def test_create_recorder_duplicate(client):
         assert response.status_code == 400
         assert "already exists" in response.json()["message"]
         mock_service.create_recorder.assert_called_once()
+
+
+def test_get_recorder_stats(client):
+    """GET /recorders/stats 回傳 available 與 deploying 數量。"""
+    with patch("app.api.v1.endpoints.api_recorders.RecorderService") as MockService:
+        from app.schemas.recorder import RecorderStatsResponse
+
+        mock_service = MockService.return_value
+        mock_service.get_recorder_stats.return_value = RecorderStatsResponse(
+            available_count=5, deploying_count=2
+        )
+
+        response = client.get(f"{settings.api_prefix}/recorders/stats")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["available_count"] == 5
+        assert data["deploying_count"] == 2
+        mock_service.get_recorder_stats.assert_called_once()

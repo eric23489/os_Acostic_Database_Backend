@@ -28,15 +28,15 @@ class TestEnumDefaultValueConsistency:
         assert deployment.status.value == "un-deployed"
 
     def test_recorder_status_default_matches_enum(self):
-        """RecorderCreate 預設值為 RecorderStatus.IN_SERVICE。"""
+        """RecorderCreate 預設值為 RecorderStatus.AVAILABLE。"""
         recorder = RecorderCreate(
             brand="Test",
             model="Model",
             sn="SN123",
             sensitivity=-160.0,
         )
-        assert recorder.status == RecorderStatus.IN_SERVICE
-        assert recorder.status.value == "in-service"
+        assert recorder.status == RecorderStatus.AVAILABLE
+        assert recorder.status.value == "available"
 
     def test_user_role_default_matches_enum(self):
         """UserCreate 預設值為 UserRole.USER。"""
@@ -166,7 +166,6 @@ class TestEnumValueFormat:
         """DeploymentStatus 多字值使用連字號分隔。"""
         multi_word_statuses = [
             DeploymentStatus.UNDEPLOYED,
-            DeploymentStatus.MONITORING,
             DeploymentStatus.WATER_INTRUSION,
         ]
         for status in multi_word_statuses:
@@ -178,7 +177,7 @@ class TestEnumValueFormat:
     def test_recorder_status_uses_hyphen_separator(self):
         """RecorderStatus 多字值使用連字號分隔。"""
         multi_word_statuses = [
-            RecorderStatus.IN_SERVICE,
+            RecorderStatus.AVAILABLE,
             RecorderStatus.OUT_OF_SERVICE,
             RecorderStatus.UNDER_REPAIR,
             RecorderStatus.UNDER_CALIBRATION,
@@ -202,7 +201,7 @@ class TestEnumCompleteness:
         """DeploymentStatus 包含所有預期的狀態。"""
         expected_values = {
             "un-deployed",
-            "under-monitoring",
+            "deploying",
             "success",
             "water-intrusion",
             "lost",
@@ -214,7 +213,7 @@ class TestEnumCompleteness:
     def test_recorder_status_has_expected_values(self):
         """RecorderStatus 包含所有預期的狀態。"""
         expected_values = {
-            "in-service",
+            "available",
             "out-of-service",
             "under-repair",
             "under-calibration",
@@ -222,6 +221,7 @@ class TestEnumCompleteness:
             "retired",
             "lost",
             "checked-out",
+            "deploying",
         }
         actual_values = {status.value for status in RecorderStatus}
         assert actual_values == expected_values
@@ -237,8 +237,8 @@ class TestEnumCompleteness:
         assert len(DeploymentStatus) == 6
 
     def test_recorder_status_count(self):
-        """RecorderStatus 有 8 個狀態。"""
-        assert len(RecorderStatus) == 8
+        """RecorderStatus 有 9 個狀態。"""
+        assert len(RecorderStatus) == 9
 
     def test_user_role_count(self):
         """UserRole 有 3 個角色。"""

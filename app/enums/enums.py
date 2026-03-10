@@ -9,7 +9,7 @@ class UserRole(StrEnum):
 
 class DeploymentStatus(StrEnum):
     UNDEPLOYED = "un-deployed"
-    MONITORING = "under-monitoring"
+    DEPLOYING = "deploying"
     SUCCESS = "success"
     WATER_INTRUSION = "water-intrusion"
     LOST = "lost"
@@ -17,7 +17,7 @@ class DeploymentStatus(StrEnum):
 
 
 class RecorderStatus(StrEnum):
-    IN_SERVICE = "in-service"
+    AVAILABLE = "available"
     OUT_OF_SERVICE = "out-of-service"
     UNDER_REPAIR = "under-repair"
     UNDER_CALIBRATION = "under-calibration"
@@ -25,6 +25,7 @@ class RecorderStatus(StrEnum):
     RETIRED = "retired"
     LOST = "lost"
     CHECKED_OUT = "checked-out"
+    DEPLOYING = "deploying"
 
 
 class DetectionMethod(StrEnum):

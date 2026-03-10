@@ -65,7 +65,7 @@ class TestDeploymentApiEnumValidation:
         error_msg = str(response.json()["detail"])
         # 確認列出有效選項
         assert "un-deployed" in error_msg
-        assert "under-monitoring" in error_msg
+        assert "deploying" in error_msg
         assert "success" in error_msg
 
     def test_update_deployment_invalid_status_returns_422(self, client):
@@ -168,7 +168,7 @@ class TestDeploymentApiEnumValidation:
             mock_deployment.fs = None
             mock_deployment.sensitivity = None
             mock_deployment.gain = None
-            mock_deployment.status = "under-monitoring"
+            mock_deployment.status = "deploying"
             mock_deployment.description = None
             mock_deployment.deploy_personnel = None
             mock_deployment.retrieve_personnel = None
@@ -179,7 +179,7 @@ class TestDeploymentApiEnumValidation:
             response = client.get(f"{settings.api_prefix}/deployments/1")
             assert response.status_code == 200
             data = response.json()
-            assert data["status"] == "under-monitoring"
+            assert data["status"] == "deploying"
             assert isinstance(data["status"], str)
 
 
@@ -236,7 +236,7 @@ class TestRecorderApiEnumValidation:
         )
         assert response.status_code == 422
         error_msg = str(response.json()["detail"])
-        assert "in-service" in error_msg
+        assert "available" in error_msg
         assert "out-of-service" in error_msg
 
     def test_update_recorder_invalid_status_returns_422(self, client):
@@ -265,6 +265,10 @@ class TestRecorderApiEnumValidation:
             mock_recorder.owner = "Ocean Sound"
             mock_recorder.recorder_channels = 1
             mock_recorder.description = None
+            mock_recorder.measured_sensitivity = None
+            mock_recorder.standard_sensitivity = None
+            mock_recorder.calibration_date = None
+            mock_recorder.bits = 16
             mock_recorder.created_at = datetime.now(UTC)
             mock_recorder.updated_at = datetime.now(UTC)
             mock_service.update_recorder.return_value = mock_recorder
@@ -294,6 +298,10 @@ class TestRecorderApiEnumValidation:
             mock_recorder.owner = "Ocean Sound"
             mock_recorder.recorder_channels = 1
             mock_recorder.description = None
+            mock_recorder.measured_sensitivity = None
+            mock_recorder.standard_sensitivity = None
+            mock_recorder.calibration_date = None
+            mock_recorder.bits = 16
             mock_recorder.created_at = datetime.now(UTC)
             mock_recorder.updated_at = datetime.now(UTC)
             mock_service.get_recorder.return_value = mock_recorder

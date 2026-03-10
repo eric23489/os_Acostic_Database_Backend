@@ -11,10 +11,24 @@ from app.db.session import get_db
 from app.enums.enums import UserRole
 from app.models.recorder import RecorderInfo
 from app.schemas.pagination import PaginatedResponse, SortOrder
-from app.schemas.recorder import RecorderCreate, RecorderResponse, RecorderUpdate
+from app.schemas.recorder import (
+    RecorderCreate,
+    RecorderResponse,
+    RecorderStatsResponse,
+    RecorderUpdate,
+)
 from app.services.recorder_service import RecorderService
 
 router = APIRouter(prefix="/recorders", tags=["recorders"])
+
+
+@router.get("/stats", response_model=RecorderStatsResponse)
+def get_recorder_stats(
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+) -> RecorderStatsResponse:
+    """回傳可用儀器數量與佈放中儀器數量。"""
+    return RecorderService(db).get_recorder_stats()
 
 
 @router.get("/{recorder_id}", response_model=RecorderResponse)

@@ -1,6 +1,6 @@
 from datetime import UTC, datetime
 
-from sqlalchemy import exists
+from sqlalchemy import exists, func
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import (
@@ -9,10 +9,11 @@ from app.core.exceptions import (
     RECORDER_IDENTIFIER_RESERVED,
     RECORDER_NOT_FOUND,
 )
+from app.enums.enums import RecorderStatus
 from app.models.deployment import DeploymentInfo
 from app.models.recorder import RecorderInfo
 from app.schemas.pagination import SortOrder
-from app.schemas.recorder import RecorderCreate, RecorderUpdate
+from app.schemas.recorder import RecorderCreate, RecorderStatsResponse, RecorderUpdate
 from app.utils.query import apply_filter, apply_search, apply_sorting, paginate
 
 
@@ -20,7 +21,26 @@ class RecorderService:
     def __init__(self, db: Session):
         self.db = db
 
-    def check_recorder_exists(self, brand, model, sn) -> bool:
+    def get_recorder_stats(self) -> RecorderStatsResponse:
+        """回傳可用與佈放中的儀器數量統計。"""
+        rows = (
+            self.db.query(RecorderInfo.status, func.count(RecorderInfo.id))
+            .filter(
+                RecorderInfo.status.in_(
+                    [RecorderStatus.AVAILABLE, RecorderStatus.DEPLOYING]
+                ),
+                RecorderInfo.is_deleted.is_(False),
+            )
+            .group_by(RecorderInfo.status)
+            .all()
+        )
+        count_map = {status: count for status, count in rows}
+        return RecorderStatsResponse(
+            available_count=count_map.get(RecorderStatus.AVAILABLE, 0),
+            deploying_count=count_map.get(RecorderStatus.DEPLOYING, 0),
+        )
+
+    def check_recorder_exists(self, brand: str, model: str, sn: str) -> bool:
         return self.db.query(
             exists().where(
                 RecorderInfo.brand == brand,
@@ -109,10 +129,14 @@ class RecorderService:
             sensitivity=recorder.sensitivity,
             high_gain=recorder.high_gain,
             low_gain=recorder.low_gain,
+            bits=recorder.bits,
             status=recorder.status,
             owner=recorder.owner,
             recorder_channels=recorder.recorder_channels,
             description=recorder.description,
+            measured_sensitivity=recorder.measured_sensitivity,
+            standard_sensitivity=recorder.standard_sensitivity,
+            calibration_date=recorder.calibration_date,
         )
 
         self.db.add(db_recorder)
@@ -208,7 +232,10 @@ class RecorderService:
         # 檢查是否有 Deployment 引用此 Recorder
         deployment_count = (
             self.db.query(DeploymentInfo)
-            .filter(DeploymentInfo.recorder_id == recorder_id)
+            .filter(
+                DeploymentInfo.recorder_id == recorder_id,
+                DeploymentInfo.is_deleted.is_(False),
+            )
             .count()
         )
         if deployment_count > 0:
