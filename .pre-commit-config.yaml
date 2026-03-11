@@ -21,7 +21,7 @@ repos:
       - id: pytest
         name: Run unit tests
         entry: .venv/Scripts/pytest.exe
-        args: [--ignore=tests/integration, --ignore=tests/test_audio_tasks.py, -q]
+        args: [--ignore=tests/integration, -q]
         language: script
         pass_filenames: false
         stages: [pre-push]
