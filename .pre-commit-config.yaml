@@ -20,7 +20,7 @@ repos:
 
       - id: pytest
         name: Run unit tests
-        entry: .venv/Scripts/pytest
+        entry: .venv/Scripts/pytest.exe
         args: [--ignore=tests/integration, -q]
         language: script
         pass_filenames: false
@@ -28,8 +28,8 @@ repos:
 
       - id: safety-check
         name: Security vulnerability check
-        entry: .venv/Scripts/python
-        args: [-m, safety, check]
+        entry: .venv/Scripts/safety.exe
+        args: [check]
         language: script
         pass_filenames: false
         stages: [pre-push]
