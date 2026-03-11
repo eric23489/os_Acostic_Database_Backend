@@ -1,10 +1,9 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from app.core.auth import get_current_user
-from app.core.exceptions import PERMISSION_ADMIN_REQUIRED
+from app.core.auth import get_current_admin_user, get_current_user
 from app.db.session import get_db
-from app.enums.enums import RecorderStatus, UserRole
+from app.enums.enums import RecorderStatus
 from app.schemas.common import MessageResponse
 from app.schemas.pagination import PaginatedResponse, SortOrder
 from app.schemas.recorder import (
@@ -111,13 +110,11 @@ def restore_recorder(
 def hard_delete_recorder(
     recorder_id: int,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
+    _current_user=Depends(get_current_admin_user),
 ):
     """
     永久刪除 Recorder。需要 Admin 權限。
 
     注意：如果有 Deployment 引用此 Recorder，將無法刪除。
     """
-    if current_user.role != UserRole.ADMIN.value:
-        raise PERMISSION_ADMIN_REQUIRED
     return RecorderService(db).hard_delete_recorder(recorder_id)
