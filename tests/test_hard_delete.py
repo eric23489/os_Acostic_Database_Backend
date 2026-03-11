@@ -184,10 +184,13 @@ class TestAudioHardDelete:
 
     def test_hard_delete_requires_admin(self, client, mock_normal_user):
         """測試一般使用者無法執行永久刪除。"""
-        from app.core.auth import get_current_user
+        from app.core.auth import get_current_admin_user
+        from app.core.exceptions import PERMISSION_ADMIN_REQUIRED
         from app.main import app
 
-        app.dependency_overrides[get_current_user] = lambda: mock_normal_user
+        app.dependency_overrides[get_current_admin_user] = lambda: (
+            _ for _ in ()
+        ).throw(PERMISSION_ADMIN_REQUIRED())
 
         response = client.delete(f"{settings.api_prefix}/audio/1/permanent")
 
@@ -217,10 +220,13 @@ class TestRecorderHardDelete:
 
     def test_hard_delete_requires_admin(self, client, mock_normal_user):
         """測試一般使用者無法執行永久刪除。"""
-        from app.core.auth import get_current_user
+        from app.core.auth import get_current_admin_user
+        from app.core.exceptions import PERMISSION_ADMIN_REQUIRED
         from app.main import app
 
-        app.dependency_overrides[get_current_user] = lambda: mock_normal_user
+        app.dependency_overrides[get_current_admin_user] = lambda: (
+            _ for _ in ()
+        ).throw(PERMISSION_ADMIN_REQUIRED())
 
         response = client.delete(f"{settings.api_prefix}/recorders/1/permanent")
 
@@ -362,8 +368,8 @@ class TestRecorderServiceHardDelete:
         service = RecorderService(mock_db)
         result = service.hard_delete_recorder(1)
 
-        assert "permanently deleted" in result["message"]
-        assert "SoundTrap/ST600/SN12345" in result["message"]
+        assert "permanently deleted" in result.message
+        assert "SoundTrap/ST600/SN12345" in result.message
         mock_db.commit.assert_called_once()
 
     def test_hard_delete_recorder_with_deployments_raises_400(self):

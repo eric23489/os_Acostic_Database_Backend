@@ -548,7 +548,9 @@ class TestRecorderServiceRestore:
         mock_query.first.side_effect = mock_filter_first
         mock_db.query.return_value = mock_query
 
-        result = service.restore_recorder(1)
+        result = service.restore_recorder(
+            1, current_user_id=1, current_user_role="admin"
+        )
 
         assert mock_recorder.is_deleted is False
         mock_db.commit.assert_called()
@@ -579,6 +581,6 @@ class TestRecorderServiceRestore:
         mock_db.query.return_value.filter.return_value.filter.return_value.filter.return_value.filter.return_value.filter.return_value.first.return_value = mock_existing
 
         with pytest.raises(AppException) as exc_info:
-            service.restore_recorder(1)
+            service.restore_recorder(1, current_user_id=1, current_user_role="admin")
 
         assert exc_info.value.http_status == 400

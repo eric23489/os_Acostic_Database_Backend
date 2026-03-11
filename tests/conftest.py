@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 import pytest
 from fastapi.testclient import TestClient
 
-from app.core.auth import get_current_user
+from app.core.auth import get_current_admin_user, get_current_user
 from app.db.session import get_db
 from app.enums.enums import UserRole
 from app.main import app
@@ -39,6 +39,7 @@ def client(mock_db, mock_current_user):
     """Test client with mocked dependencies."""
     app.dependency_overrides[get_db] = lambda: mock_db
     app.dependency_overrides[get_current_user] = lambda: mock_current_user
+    app.dependency_overrides[get_current_admin_user] = lambda: mock_current_user
     with TestClient(app) as c:
         yield c
     app.dependency_overrides.clear()

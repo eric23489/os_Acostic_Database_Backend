@@ -645,7 +645,7 @@ class TestRecorderSoftDelete:
             response = client.post(f"{settings.api_prefix}/recorders/1/restore")
 
             assert response.status_code == 200
-            mock_service.restore_recorder.assert_called_once_with(1)
+            mock_service.restore_recorder.assert_called_once_with(1, 1, "admin")
 
     def test_restore_recorder_unique_collision(self, client, mock_db):
         """
