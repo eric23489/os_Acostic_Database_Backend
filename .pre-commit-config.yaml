@@ -20,16 +20,18 @@ repos:
 
       - id: pytest
         name: Run unit tests
-        entry: python -m pytest
+        entry: pytest
         args: [--ignore=tests/integration, -q]
-        language: system
+        language: python
+        additional_dependencies: [pytest]
         pass_filenames: false
         stages: [pre-push]
 
       - id: safety-check
         name: Security vulnerability check
-        entry: python -m safety
+        entry: safety
         args: [check]
-        language: system
+        language: python
+        additional_dependencies: [safety]
         pass_filenames: false
         stages: [pre-push]
