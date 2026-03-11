@@ -17,3 +17,19 @@ repos:
         language: python
         pass_filenames: false
         files: ^(app/core/exceptions\.py|docs/error-list\.md)$
+
+      - id: pytest
+        name: Run unit tests
+        entry: pytest
+        args: [--ignore=tests/integration, -q]
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+
+      - id: safety-check
+        name: Security vulnerability check
+        entry: safety
+        args: [check]
+        language: system
+        pass_filenames: false
+        stages: [pre-push]

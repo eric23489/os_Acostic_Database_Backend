@@ -14,49 +14,37 @@ PR 建立或更新
     │   ├─ 計算變更大小
     │   └─ 自動加上標籤
     │
-    ├─→ PR Auto Review (pr-review.yml)
-    │   │
-    │   ├─→ Job 1: Code Quality Check
-    │   │   ├─ Black 格式檢查
-    │   │   ├─ isort 匯入排序檢查
-    │   │   └─ flake8 程式碼品質檢查
-    │   │
-    │   ├─→ Job 2: Run Tests
-    │   │   ├─ 執行 pytest
-    │   │   ├─ 產生覆蓋率報告
-    │   │   └─ 上傳至 codecov
-    │   │
-    │   ├─→ Job 3: Security Check
-    │   │   └─ 使用 safety 檢查套件安全性
-    │   │
-    │   └─→ Job 4: Review Summary
-    │       └─ 在 PR 發布審查摘要評論
-    │
-    └─→ CI (test connection config of db.yml)
-        └─ 執行基本 CI 測試
+    └─→ PR Auto Review (pr-review.yml)
+        │
+        ├─→ Job 1: Code Quality Check
+        │   ├─ ruff check：Linting 檢查
+        │   └─ ruff format --check：格式化檢查
+        │
+        ├─→ Job 2: Run Tests
+        │   ├─ 執行 pytest
+        │   ├─ 產生覆蓋率報告
+        │   └─ 上傳至 codecov
+        │
+        ├─→ Job 3: Security Check
+        │   └─ 使用 safety 檢查套件安全性
+        │
+        └─→ Job 4: Review Summary
+            └─ 在 PR 發布審查摘要評論
 ```
 
 ## 審查項目詳細說明
 
 ### 1. 程式碼品質檢查 (Code Quality)
 
-#### Black - 程式碼格式化檢查
-- **目的**：確保程式碼符合 PEP 8 格式規範
+#### ruff check - Linting 檢查
+- **目的**：檢查語法錯誤、未定義名稱、import 排序等問題
 - **檢查範圍**：`app/` 和 `tests/` 目錄
-- **修正方法**：執行 `black app/ tests/`
+- **修正方法**：執行 `ruff check --fix app/ tests/`
 
-#### isort - 匯入排序檢查
-- **目的**：確保 import 語句按照標準順序排列
+#### ruff format --check - 格式化檢查
+- **目的**：確保程式碼符合統一格式規範（取代 Black）
 - **檢查範圍**：`app/` 和 `tests/` 目錄
-- **修正方法**：執行 `isort app/ tests/`
-
-#### flake8 - 程式碼品質檢查
-- **目的**：檢查常見的程式碼問題與風格違規
-- **檢查項目**：
-  - 語法錯誤 (E9)
-  - 未定義的名稱 (F63, F7, F82)
-  - 複雜度檢查（複雜度 ≤ 10）
-  - 行長度檢查（≤ 127 字元）
+- **修正方法**：執行 `ruff format app/ tests/`
 
 ### 2. 測試執行 (Testing)
 
@@ -96,14 +84,14 @@ PR 建立或更新
 審查完成後，系統會在 PR 中自動發布一則評論，包含：
 
 ```
-## ✅ Automated PR Review Summary
+## Automated PR Review Summary
 
 **Status:** passed
 
 ### Results:
-- ✅ **Code Quality Check**: success
-- ✅ **Run Tests**: success
-- ✅ **Security Check**: success
+- [PASS] **Code Quality Check**: success
+- [PASS] **Run Tests**: success
+- [PASS] **Security Check**: success
 
 ### Details:
 - Total checks: 3
@@ -111,7 +99,7 @@ PR 建立或更新
 - Failed: 0
 - Skipped: 0
 
-🎉 All checks passed! Great work!
+All checks passed!
 
 ---
 *This is an automated review. For detailed logs, check the Actions tab.*
@@ -119,16 +107,14 @@ PR 建立或更新
 
 ## 如何回應審查結果
 
-### 如果所有檢查都通過 ✅
+### 如果所有檢查都通過
 - 您的 PR 已經符合標準，可以請求人工審查
 
-### 如果程式碼品質檢查失敗 ⚠️
+### 如果程式碼品質檢查失敗
 ```bash
 # 本地修正
-pip install black isort flake8
-black app/ tests/
-isort app/ tests/
-flake8 app/ tests/
+ruff check --fix app/ tests/
+ruff format app/ tests/
 
 # 提交修正
 git add .
@@ -136,7 +122,7 @@ git commit -m "Fix code quality issues"
 git push
 ```
 
-### 如果測試失敗 ❌
+### 如果測試失敗
 ```bash
 # 本地執行測試
 pytest -v
@@ -148,7 +134,7 @@ pytest --lf
 pytest
 ```
 
-### 如果安全檢查失敗 🔒
+### 如果安全檢查失敗
 ```bash
 # 查看詳細的安全報告
 pip install safety
@@ -157,6 +143,27 @@ safety check
 # 根據報告更新有問題的套件
 pip install --upgrade <package-name>
 pip freeze > requirements.txt
+```
+
+## Pre-push 本地檢查設定
+
+首次設定（僅需執行一次）：
+```bash
+pre-commit install --hook-type pre-push
+```
+
+設定後，每次 `git push` 前會自動執行：
+- pytest（排除 integration 測試）
+- safety 安全性掃描
+
+如需跳過（緊急情況）：
+```bash
+git push --no-verify
+```
+
+手動觸發 pre-push 階段的所有 hook：
+```bash
+pre-commit run --hook-stage pre-push --all-files
 ```
 
 ## 最佳實踐 (Best Practices)
@@ -184,8 +191,6 @@ pip freeze > requirements.txt
 ## 相關連結 (Related Links)
 
 - [GitHub Actions 文件](https://docs.github.com/en/actions)
-- [Black 格式化工具](https://black.readthedocs.io/)
-- [isort 文件](https://pycqa.github.io/isort/)
-- [flake8 文件](https://flake8.pycqa.org/)
+- [Ruff 文件](https://docs.astral.sh/ruff/)
 - [pytest 文件](https://docs.pytest.org/)
 - [safety 文件](https://pyup.io/safety/)

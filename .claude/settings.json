@@ -1,0 +1,35 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "tool_name == \"Edit\" && tool_input.file_path contains \"exceptions.py\"",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '[Hook] exceptions.py 已修改 → 記得同步更新 docs/error-list.md' >&2 && echo '[Hook] exceptions.py 已修改 → 記得同步更新 .claude/skills/codemap.md（AppException 分類表）' >&2"
+          }
+        ]
+      },
+      {
+        "matcher": "tool_name == \"Edit\" && tool_input.file_path contains \"app/models/\"",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '[Hook] Model 已修改 → 記得執行 alembic revision --autogenerate' >&2 && echo '[Hook] Model 已修改 → 記得同步更新 .claude/skills/codemap.md（關鍵 Model 欄位速查）' >&2"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "tool_name == \"Bash\" && tool_input.command contains \"pytest\"",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if ! echo \"${TOOL_INPUT_COMMAND:-}\" | grep -q 'ignore=tests/integration'; then echo '[Hook] 注意：pytest 未排除 integration tests。如要排除請加 --ignore=tests/integration' >&2; fi"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -53,7 +53,7 @@ def delete_resource(
 
 ### Service 層 (單一資源)
 ```python
-def hard_delete_resource(self, resource_id: int) -> dict:
+def hard_delete_resource(self, resource_id: int) -> MessageResponse:
     """
     永久刪除資源。
 
@@ -65,10 +65,7 @@ def hard_delete_resource(self, resource_id: int) -> dict:
     # 1. 查詢資源 (包含已軟刪除)
     resource = self.db.query(ResourceInfo).filter(ResourceInfo.id == resource_id).first()
     if not resource:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Resource not found",
-        )
+        raise RESOURCE_NOT_FOUND  # AppException 常數，不加括號
 
     # 2. 取得 MinIO bucket 名稱 (從父層級)
     bucket_name = self._get_bucket_name(resource)
@@ -84,7 +81,7 @@ def hard_delete_resource(self, resource_id: int) -> dict:
     self.db.query(ResourceInfo).filter(ResourceInfo.id == resource_id).delete()
     self.db.commit()
 
-    return {"message": "Resource permanently deleted"}
+    return MessageResponse(message=f"Resource {resource_id} permanently deleted")
 ```
 
 ### Service 層 (級聯刪除 - Project 層級)
@@ -152,20 +149,15 @@ def hard_delete_project(self, project_id: int) -> dict:
 
 ### API 層
 ```python
-@router.delete("/{resource_id}/permanent", response_model=dict)
+@router.delete("/{resource_id}/permanent", response_model=MessageResponse)
 def hard_delete_resource(
     resource_id: int,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
+    _current_user=Depends(get_current_admin_user),  # Admin 驗證由 dependency 處理
 ):
     """
     永久刪除資源。需要 Admin 權限。
     """
-    if current_user.role != UserRole.ADMIN.value:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin permission required for permanent deletion",
-        )
     return ResourceService(db).hard_delete_resource(resource_id)
 ```
 
@@ -179,7 +171,7 @@ def restore_resource(self, resource_id: int) -> ResourceInfo:
     # 查詢資源 (包含已軟刪除)
     resource = self.db.query(ResourceInfo).filter(ResourceInfo.id == resource_id).first()
     if not resource:
-        raise HTTPException(status_code=404, detail="Resource not found")
+        raise RESOURCE_NOT_FOUND  # AppException 常數
 
     # 檢查唯一欄位衝突
     if self.db.query(ResourceInfo).filter(
@@ -187,10 +179,7 @@ def restore_resource(self, resource_id: int) -> ResourceInfo:
         ResourceInfo.is_deleted.is_(False),
         ResourceInfo.id != resource_id,
     ).first():
-        raise HTTPException(
-            status_code=400,
-            detail="Active resource with this identifier already exists. Cannot restore.",
-        )
+        raise RESOURCE_IDENTIFIER_COLLISION  # AppException 常數
 
     resource.is_deleted = False
     resource.deleted_at = None
@@ -209,17 +198,8 @@ def restore_resource(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    resource = db.query(ResourceInfo).filter(ResourceInfo.id == resource_id).first()
-    if not resource:
-        raise HTTPException(status_code=404, detail="Resource not found")
-
-    # 權限檢查: 刪除者或 Admin
-    if current_user.role != UserRole.ADMIN.value and current_user.id != resource.deleted_by:
-        raise HTTPException(
-            status_code=403,
-            detail="Only the deleter or admin can restore this resource",
-        )
-    return ResourceService(db).restore_resource(resource_id)
+    # 權限檢查（刪除者或 Admin）放在 service 層
+    return ResourceService(db).restore_resource(resource_id, current_user.id, current_user.role)
 ```
 
 ---
